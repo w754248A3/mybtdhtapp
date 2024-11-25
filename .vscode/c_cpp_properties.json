@@ -1,0 +1,15 @@
+{
+  "configurations": [
+    {
+      "name": "msys2",
+      "includePath": ["${workspaceFolder}/**", 
+      "${workspaceFolder}/../CppHttpFileServer/**"],
+      "defines": [],
+      "compilerPath": "C:/Users/PC/AppData/Local/Programs/msys2/ucrt64/bin/g++",
+      "cStandard": "c11",
+      "cppStandard": "c++20",
+      "intelliSenseMode": "windows-gcc-x64"
+    }
+  ],
+  "version": 4
+}
