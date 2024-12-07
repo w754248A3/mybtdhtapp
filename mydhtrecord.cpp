@@ -35,6 +35,42 @@ boost::asio::ip::address createaddress(const char* str){
         return ip;
 }
 
+void settorrent(lt::add_torrent_params& p){
+        p.flags = lt::torrent_flags::upload_mode;
+
+        boost::asio::ip::address ip = createaddress("192.168.0.110");
+
+
+
+        p.peers.push_back(libtorrent::tcp::endpoint{ip, 6881});
+
+        p.save_path = "D:/mybtdownload/"; // save in current dir
+}
+
+void addtorrent(lt::session& ses, lt::sha1_hash& hash,  std::unordered_map<std::string, int>& map){
+       
+       auto key = hash.to_string();
+
+       if(map.find(key) == map.end()){
+                //Print("bu cun zai");
+
+                map.emplace(key, 0);
+
+                lt::add_torrent_params p{};
+
+                p.info_hashes= lt::info_hash_t{hash};
+
+                settorrent(p);
+
+                ses.async_add_torrent(p);
+       }
+        else{
+                //Print("yi  cun zai");
+        }
+        
+
+}
+
 void f(std::string url){
         lt::settings_pack p;
         p.set_int(lt::settings_pack::alert_mask, lt::alert_category::status
@@ -56,25 +92,20 @@ void f(std::string url){
         //ses.set_ip_filter(filter);
 
 
-
+        std::unordered_map<std::string, int> map{};
 
         lt::add_torrent_params atp = lt::parse_magnet_uri(url);
         
-        boost::asio::ip::address ip = createaddress("192.168.0.110");
+        settorrent(atp);
 
-
-
-        atp.peers.push_back(libtorrent::tcp::endpoint{ip, 6881});
-
-        atp.save_path = "D:/mybtdownload/"; // save in current dir
-        lt::torrent_handle h = ses.add_torrent(atp);
+        ses.async_add_torrent(atp);
         bool isover = false;
         for (;;) {
                 std::vector<lt::alert*> alerts;
                 ses.pop_alerts(&alerts);
 
                 for (lt::alert const* a : alerts) {
-                std::cout << UTF8::GetMultiByteFromUTF8(a->message()) << std::endl;
+                //std::cout << UTF8::GetMultiByteFromUTF8(a->message()) << std::endl;
                 // if we receive the finished alert or an error, we're done
                 if(lt::alert_cast<lt::peer_blocked_alert>(a)){
                         std::cout << "blocked ip" << std::endl;
@@ -82,15 +113,22 @@ void f(std::string url){
                 auto type = a->type();
                 if(type == libtorrent::dht_announce_alert::alert_type){
                         auto v = (libtorrent::dht_announce_alert*)a;
+                      
+                        addtorrent(ses, v->info_hash, map);
 
-                        Print("pansk url :", getstring(v->info_hash.to_string()));
+                }
 
+                if(type == libtorrent::add_torrent_alert::alert_type){
+
+                        auto v = (libtorrent::add_torrent_alert*)a;
+
+                        //Print("add tr:", getstring(v->params.info_hashes.get(lt::protocol_version::V1).to_string()));
                 }
 
                 if(type == libtorrent::dht_get_peers_alert::alert_type){
                         auto v = (libtorrent::dht_get_peers_alert*)a;
 
-                        Print("get url :", getstring(v->info_hash.to_string()));
+                        addtorrent(ses, v->info_hash, map);
 
                 }
 
@@ -98,8 +136,7 @@ void f(std::string url){
                        
                        for (auto&  statu: statealert->status)
                        {
-                               Print("needCount:", statu.total, 
-                               " download:", statu.total_payload_download);
+                               Print("tr name:", UTF8::GetMultiByteFromUTF8(statu.name));
 
                        }
                        
@@ -115,6 +152,41 @@ void f(std::string url){
                 std::this_thread::sleep_for(std::chrono::milliseconds(2000));
                 ses.post_torrent_updates();
               
+                auto vs = ses.get_torrent_status([](const lt::torrent_status& status){
+                       return status.state == lt::torrent_status::state_t::downloading
+                       || status.state == lt::torrent_status::state_t::seeding
+                       ||status.state == lt::torrent_status::state_t::finished;
+                
+                });
+
+                ses.refresh_torrent_status(&vs, lt::torrent_handle::query_name| lt::torrent_handle::query_torrent_file);
+
+                for (auto& i : vs)
+                {      
+                      Print(i.state, "    name:",UTF8::GetMultiByteFromUTF8(i.name), "    shash:",getstring(i.info_hashes.get(lt::protocol_version::V1).to_string()) );
+
+                      auto wk = i.torrent_file;
+
+                      auto p = wk.lock();
+
+                      if(p){
+                        auto filestorm = p->orig_files();
+                       
+                        for (const auto& n :filestorm.file_range())
+                        {
+                              auto path = filestorm.file_path(n);
+
+                              Print("          item:",UTF8::GetMultiByteFromUTF8(path));
+                        }
+                        
+                      }
+
+                      ses.remove_torrent(i.handle);
+                }
+                
+                
+
+
                 if(isover){
                         std::cout << "done, shutting down" << std::endl;
 
