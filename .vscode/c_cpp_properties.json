@@ -3,7 +3,8 @@
     {
       "name": "msys2",
       "includePath": ["${workspaceFolder}/**", 
-      "${workspaceFolder}/../CppHttpFileServer/**"],
+      "${workspaceFolder}/../CppHttpFileServer/**",
+      "${workspaceFolder}/include/**"],
       "defines": [],
       "compilerPath": "C:/Users/PC/AppData/Local/Programs/msys2/ucrt64/bin/g++",
       "cStandard": "c11",

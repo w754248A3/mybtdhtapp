@@ -64,6 +64,20 @@
         "codecvt": "cpp",
         "map": "cpp",
         "set": "cpp",
-        "regex": "cpp"
+        "regex": "cpp",
+        "*.ipp": "cpp",
+        "any": "cpp",
+        "csignal": "cpp",
+        "cstring": "cpp",
+        "condition_variable": "cpp",
+        "coroutine": "cpp",
+        "list": "cpp",
+        "unordered_set": "cpp",
+        "source_location": "cpp",
+        "future": "cpp",
+        "mutex": "cpp",
+        "shared_mutex": "cpp",
+        "stdfloat": "cpp",
+        "cinttypes": "cpp"
     }
 }
