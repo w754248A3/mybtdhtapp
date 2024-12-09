@@ -1,12 +1,21 @@
+#ifndef _WIN32_WINNT
 #define _WIN32_WINNT _WIN32_WINNT_WIN8
+#endif
+
+#ifndef NTDDI_VERSION
 #define NTDDI_VERSION NTDDI_WIN8
+#endif
 
 #include <libtorrent/session.hpp>
 #include <libtorrent/add_torrent_params.hpp>
 #include <libtorrent/torrent_handle.hpp>
 #include <libtorrent/magnet_uri.hpp>
 #include <libtorrent/alert_types.hpp>
+#include <libtorrent/bdecode.hpp>
+#include <libtorrent/bencode.hpp>
+#include <libtorrent/create_torrent.hpp>
 #include <iostream>
+#include <fstream>
 #include <format>
 #include "leikaifeng.h"
 
@@ -70,6 +79,64 @@ void addtorrent(lt::session &ses, lt::sha1_hash &hash, std::unordered_map<std::s
         }
 }
 
+
+
+void WriteBuffToFile(std::vector<char> &buff, const std::string &path)
+{
+    std::ofstream outputFile(UTF8::GetMultiByteFromUTF8(path).data(), std::ios::binary);
+
+    if (!outputFile)
+    {
+        Exit("open file error");
+    }
+
+    // 将字节缓冲区写入文件
+    outputFile.write(buff.data(), buff.size());
+
+    if (!outputFile)
+    {
+        Exit("weite file error");
+    }
+
+    
+    outputFile.close();
+
+}
+
+
+void SaveTorrentFile(const lt::torrent_info& info){
+        lt::create_torrent ct(info);
+        auto te = ct.generate();
+        std::vector<char> buffer;
+        bencode(std::back_inserter(buffer), te);
+
+        auto filename =std::string{"./torrent/"} + getstring(info.info_hashes().get_best().to_string())+".torrent";
+
+        
+        Print("ok");
+       WriteBuffToFile(buffer, filename);
+}
+
+void SaveFileInfo(const lt::torrent_info& info){
+
+
+        auto& name = info.name();
+
+        auto fileCount = info.num_files();
+        auto total_size =info.total_size();
+
+        auto& filestorm = info.orig_files();
+        
+        Print("name:",  UTF8::GetMultiByteFromUTF8(name), "fileCount", fileCount, "total_size", total_size);
+        for (auto const &n  : filestorm.file_range())
+        {
+                auto filepath = filestorm.file_path(n);
+                auto fileSize = filestorm.file_size(n);
+
+                Print("          item:", "fileSize", fileSize, UTF8::GetMultiByteFromUTF8(filepath));
+        }
+}
+
 void f()
 {
         lt::settings_pack p;
@@ -78,12 +145,15 @@ void f()
         p.set_str(lt::settings_pack::string_types::dht_bootstrap_nodes,
                   "router.bittorrent.com:6881,router.utorrent.com:6881,router.bitcomet.com:6881,dht.transmissionbt.com:6881");
 
+        p.set_str(lt::settings_pack::string_types::dht_bootstrap_nodes,
+                  "192.168.0.110:6881");
+
         lt::session ses{p};
      
         std::unordered_map<std::string, int> map{};
 
         
-        
+        //magnet:?xt=urn:btih:ffcd1c04449c405dd5f4d3e427c2c708ad67304a
         for (;;)
         {
                 std::vector<lt::alert *> alerts;
@@ -99,6 +169,7 @@ void f()
                         {
                                
                                 addtorrent(ses, v->info_hash, map);
+                               
                         }
                       
                         if (auto v = lt::alert_cast<libtorrent::add_torrent_alert>(a))
@@ -112,6 +183,7 @@ void f()
                         {
                               
                                 addtorrent(ses, v->info_hash, map);
+                               
                         }
 
                         if (auto statealert = lt::alert_cast<lt::state_update_alert>(a))
@@ -123,6 +195,11 @@ void f()
                                 }
                         }
 
+                        if (auto immutable_item = lt::alert_cast<lt::dht_immutable_item_alert>(a))
+                        {
+                              
+                        }
+
                         if (auto torrent_finished = lt::alert_cast<lt::torrent_finished_alert>(a))
                         {
                                 Print("torrent_finished run");
@@ -132,41 +209,28 @@ void f()
                               
                         }
 
+                        if (auto session_error = lt::alert_cast<lt::session_error_alert>(a))
+                        {
+                                Print("session_error run");
+                        }
+
+
                         if (auto metadata_received =lt::alert_cast<lt::metadata_received_alert>(a))
                         {
                               Print("metadata_received run");
+
+                              auto handle = metadata_received->handle;
+                                auto info = handle.torrent_file();
+                                SaveFileInfo(*info);
+                                SaveTorrentFile(*info);
+
+                                ses.remove_torrent(handle);
                         }
                 }
                 std::this_thread::sleep_for(std::chrono::milliseconds(2000));
-                //ses.post_torrent_updates();
+                ses.post_torrent_updates();
 
-                auto vs = ses.get_torrent_status([](const lt::torrent_status &status)
-                                                 { return status.state == lt::torrent_status::state_t::downloading || status.state == lt::torrent_status::state_t::seeding || status.state == lt::torrent_status::state_t::finished; });
-
-                ses.refresh_torrent_status(&vs, lt::torrent_handle::query_name | lt::torrent_handle::query_torrent_file);
-
-                for (auto &i : vs)
-                {
-                        Print(i.state, "    name:", UTF8::GetMultiByteFromUTF8(i.name), "    shash:", getstring(i.info_hashes.get(lt::protocol_version::V1).to_string()));
-
-                        auto wk = i.torrent_file;
-
-                        auto p = wk.lock();
-
-                        if (p)
-                        {
-                                auto filestorm = p->orig_files();
-
-                                for (const auto &n : filestorm.file_range())
-                                {
-                                        auto path = filestorm.file_path(n);
-
-                                        Print("          item:", UTF8::GetMultiByteFromUTF8(path));
-                                }
-                        }
-
-                        ses.remove_torrent(i.handle);
-                }
+              
 
         }
 }
