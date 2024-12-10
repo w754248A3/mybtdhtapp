@@ -5,6 +5,8 @@ project(mydhtrecord CXX)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+set(MY_DIR_PATH ${PROJECT_SOURCE_DIR})
+
 function(my_set_common_properties target)
 
     # set_target_properties(${target} PROPERTIES 
@@ -27,10 +29,10 @@ function(my_set_common_properties target)
 
     target_link_options(${target} PUBLIC
     -static)
-
+   
     target_include_directories(${target} PUBLIC
-        ${PROJECT_SOURCE_DIR}/include
-        ${PROJECT_SOURCE_DIR}/../CppHttpFileServer
+        ${MY_DIR_PATH}/include
+        ${MY_DIR_PATH}/../CppHttpFileServer
     )
 
 
@@ -97,15 +99,23 @@ function(my_set_common_properties target)
 
 endfunction()
 
-add_executable(${PROJECT_NAME} ./mydhtrecord.cpp)
 
-add_subdirectory(mycmake)
+function(my_set_target_out targetname)
+    # 设置输出目录
+    set_target_properties(${targetname} PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY ${MY_DIR_PATH}/out
+    OUTPUT_NAME "${targetname}"
+    )
+endfunction()
 
 
-my_set_common_properties(${PROJECT_NAME})
+add_executable(mydhtrecord ./mydhtrecord.cpp)
 
 
-target_precompile_headers(${PROJECT_NAME} PUBLIC
+my_set_common_properties(mydhtrecord)
+
+
+target_precompile_headers(mydhtrecord PUBLIC
     <libtorrent/session.hpp>
     <libtorrent/add_torrent_params.hpp>
     <libtorrent/torrent_handle.hpp>
@@ -116,8 +126,16 @@ target_precompile_headers(${PROJECT_NAME} PUBLIC
     <libtorrent/create_torrent.hpp>
     )
 
-# 设置输出目录
-set_target_properties(${PROJECT_NAME} PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/out
-    OUTPUT_NAME "${PROJECT_NAME}"
-)
+
+my_set_target_out(mydhtrecord)
+
+
+
+
+add_executable(testsqlite ./testsqlite.cpp)
+
+my_set_common_properties(testsqlite)
+
+target_precompile_headers(testsqlite REUSE_FROM mydhtrecord)
+
+my_set_target_out(testsqlite)
