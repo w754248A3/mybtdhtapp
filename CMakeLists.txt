@@ -4,7 +4,7 @@ project(mydhtrecord CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-
+set(CMAKE_EXPORT_COMPILE_COMMANDS 1)
 set(MY_DIR_PATH ${PROJECT_SOURCE_DIR})
 
 function(my_set_common_properties target)
@@ -124,6 +124,13 @@ target_precompile_headers(mydhtrecord PUBLIC
     <libtorrent/bdecode.hpp>
     <libtorrent/bencode.hpp>
     <libtorrent/create_torrent.hpp>
+    <sqlite3.h>
+    <iostream>
+    <string>
+    <vector>
+    <windows.h>
+
+
     )
 
 
@@ -132,10 +139,24 @@ my_set_target_out(mydhtrecord)
 
 
 
-add_executable(testsqlite ./testsqlite.cpp)
+add_executable(testsqlite 
+./include/mybtclass.h
+./include/mysqliteclass.h
+./include/mytf.h
+./testsqlite.cpp)
 
 my_set_common_properties(testsqlite)
 
 target_precompile_headers(testsqlite REUSE_FROM mydhtrecord)
 
 my_set_target_out(testsqlite)
+
+
+
+add_executable(test ./test.cpp)
+
+my_set_common_properties(test)
+
+target_precompile_headers(test REUSE_FROM mydhtrecord)
+
+my_set_target_out(test)
