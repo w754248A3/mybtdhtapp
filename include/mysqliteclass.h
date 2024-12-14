@@ -1,6 +1,6 @@
 #pragma once
-#include <libtorrent/aux_/path.hpp>
-#include <memory>
+
+#include <functional>
 #ifndef _MYSQLITECLASS
 #define _MYSQLITECLASS
 
@@ -15,6 +15,8 @@
 #include <string>
 #include <vector>
 #include <filesystem>
+#include <libtorrent/aux_/path.hpp>
+#include <memory>
 
 namespace SqlMy
 {
@@ -22,7 +24,8 @@ namespace SqlMy
   enum class SqlStepCode{
     OK,
     ROW,
-    CONSTRAINT_UNIQUE
+    CONSTRAINT_UNIQUE,
+    CONSTRAINT
   };
 
   class MySqliteStmt
@@ -67,11 +70,16 @@ namespace SqlMy
       if (res != SQLITE_DONE && res != SQLITE_OK)
       {
         auto excode = sqlite3_extended_errcode(m_db);
+       
         if(excode==SQLITE_CONSTRAINT_UNIQUE){
-        return SqlStepCode::CONSTRAINT_UNIQUE;
+          return SqlStepCode::CONSTRAINT_UNIQUE;
         }
 
-        Print(sqlite3_errmsg(m_db));
+        if(excode==SQLITE_CONSTRAINT){
+          return SqlStepCode::CONSTRAINT;
+        }
+
+        Print("code", res, "excode:", excode, "error meg", sqlite3_errmsg(m_db));
         Exit("step stm error");
       }
 
@@ -482,9 +490,22 @@ namespace SqlMy
 
           offset += count;
 
+
+
           if (xToken(pCtx, 0, pToken, (int)nToken, (int)iStart, (int)iEnd) != SQLITE_OK)
           {
             Exit("xToken call not ok error");
+          }
+
+          char c = pToken[0];
+          if(nToken==1 && c >= 'a' && c<= 'z'){
+            char c_offset = c-'a';
+            c = 'A'+c_offset;
+
+            if (xToken(pCtx, FTS5_TOKEN_COLOCATED, &c, (int)nToken, (int)iStart, (int)iEnd) != SQLITE_OK)
+            {
+              Exit("xToken COLOCATED call not ok error");
+            }
           }
         }
         else
@@ -567,6 +588,72 @@ namespace SqlMy
          m_inset->Reset();
 
          return isok;
+     }
+
+  };
+
+
+
+  class MyFullTextTable{
+
+    std::shared_ptr<MySqliteConnect> m_db;
+    std::unique_ptr<MySqliteStmt> m_inset;
+    public:
+      MyFullTextTable(std::shared_ptr<MySqliteConnect> db): m_db(db){
+
+        auto papi = MySqliteStmt::GetFts5ApiP(db->Get());
+
+  
+
+        MySqliteTokenizers::RegisterTokenizer(papi, "mytokenizer");
+
+
+
+         SqlMy::CreateTable(db,
+          R""""(
+            CREATE VIRTUAL TABLE IF NOT EXISTS
+             fulltext_table USING fts5(text, tokenize="mytokenizer");               
+          )"""");
+
+      
+         m_inset = std::make_unique<MySqliteStmt>(db->Get(), R""""(
+            INSERT INTO fulltext_table (rowid, text) VALUES (?1, ?2);
+          )"""");
+        
+      }
+
+
+      bool Insert(int64_t id, const std::string& s){
+
+          m_inset->BindInt64(1, id);
+          m_inset->BindText(2, s);
+        
+          auto res = m_inset->Step();
+          bool isok= res == SqlStepCode::OK;
+         
+         m_inset->Reset();
+
+         return isok;
+     }
+
+
+     void Sou(const std::string& s, std::function<void(int64_t, std::string&)> func){
+        MySqliteStmt stmt{m_db->Get(),R""""(
+            SELECT rowid, text FROM fulltext_table
+            WHERE fulltext_table MATCH ?1 
+            ORDER BY rank
+            LIMIT 30;
+          )""""};
+        stmt.BindText(1, s);
+       
+        while (stmt.Step() == SqlStepCode::ROW) {
+          auto id = stmt.GetInt64(0);
+          auto text = stmt.GetText(1);
+
+          func(id, text);
+        }
+
+        
      }
 
   };

@@ -1,4 +1,7 @@
 #pragma once
+#include <cstdint>
+#include <utility>
+#include <vector>
 #ifndef _MYBTCLASS
 #define _MYBTCLASS
 
@@ -6,8 +9,7 @@
 #include <charconv>
 #include <cstddef>
 #include <algorithm>
-
-
+#include <libtorrent/torrent_info.hpp>
 
 namespace BtMy
 {
@@ -43,8 +45,35 @@ namespace BtMy
         return true;
     }
 
+    struct Torrent_Data{
+        std::string name;
+        int64_t size;
+        std::vector<std::pair<std::string, int64_t>> files;
+    };
 
+    Torrent_Data GetTorrentData(const lt::torrent_info& info){
+        Torrent_Data data{};
 
+        auto& name = info.name();
+
+        auto fileCount = info.num_files();
+        auto total_size =info.total_size();
+
+        auto& filestorm = info.orig_files();
+        
+        data.name=name;
+        data.size= total_size;
+
+        for (auto const &n  : filestorm.file_range())
+        {
+                auto filepath = filestorm.file_path(n);
+                auto fileSize = filestorm.file_size(n);
+
+                data.files.emplace_back(filepath, fileSize);
+        }
+
+        return data;
+    }   
     
 
 }
