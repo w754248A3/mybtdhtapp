@@ -10,7 +10,6 @@
 #include <iostream>
 #include <cstdint>
 #include "leikaifeng.h"
-#include "mytf.h"
 #include <fstream>
 #include <string>
 #include <vector>
@@ -146,65 +145,7 @@ namespace SqlMy
       func((const char *)res);
     }
 
-  private:
-    template <typename T, MyTF::IsInt64OrString... TArgs, MyTF::IsInt64OrString... TS>
-    constexpr void _Get(T &&func, MyTF::ArgsPack<TArgs...> pack, TS &&...args)
-      requires(std::is_invocable_v<T, TArgs...>)
-    {
-
-      constexpr size_t size = sizeof...(TArgs);
-      constexpr size_t index = sizeof...(TS);
-      if constexpr (index != size)
-      {
-        using type = MyTF::GetTypeAtIndex<index, TArgs...>::type;
-
-        if constexpr (MyTF::IsInt64<type>)
-        {
-          auto &&v = this->GetInt64(index);
-          _Get(std::forward<T>(func), pack, std::forward<TS>(args)..., std::forward<type>(v));
-        }
-        else
-        {
-          auto &&v = this->GetText(index);
-          _Get(std::forward<T>(func), pack, std::forward<TS>(args)..., std::forward<type>(v));
-        }
-      }
-      else
-      {
-        func(std::forward<TS>(args)...);
-      }
-    }
-
-  public:
-    template <typename T>
-    constexpr void Get(T &&func)
-    {
-
-      using pack = MyTF::function_traits<T>::argument_types;
-
-      _Get(std::forward<T>(func), pack{});
-    }
-
-    template <int TIndex, typename T, typename... TArgs>
-    constexpr void Get2(T v, TArgs... args)
-      requires((std::is_same_v<T, int64_t *> || std::is_same_v<T, std::string *>))
-    {
-
-      if constexpr (std::is_same_v<T, int64_t *>)
-      {
-        this->GetInt64(TIndex, v);
-      }
-      else
-      {
-        this->GetText(TIndex, v);
-      }
-
-      if constexpr (sizeof...(TArgs) != 0)
-      {
-        this->Get2<TIndex + 1>(args...);
-      }
-    }
-
+    
     void Reset()
     {
       auto uperrorcode =  sqlite3_errcode(m_db);
@@ -265,25 +206,6 @@ namespace SqlMy
       }
 
       return p;
-    }
-
-    template <int TIndex, MyTF::IsInt64OrString T1, MyTF::IsInt64OrString... TArgs>
-    constexpr void Bind(T1 &&v1, TArgs &&...args)
-    {
-
-      if constexpr (MyTF::IsInt64<T1>)
-      {
-        this->BindInt64(TIndex, std::forward<T1>(v1));
-      }
-      else
-      {
-        this->BindText(TIndex, std::forward<T1>(v1));
-      }
-
-      if constexpr (sizeof...(TArgs) != 0)
-      {
-        this->Bind<TIndex + 1>(std::forward<TArgs>(args)...);
-      }
     }
 
     void Inset(std::function<void(MySqliteStmt &)> resfunc)
