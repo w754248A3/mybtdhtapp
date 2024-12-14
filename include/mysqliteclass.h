@@ -52,8 +52,6 @@ namespace SqlMy
         Print(sqlite3_errmsg(m_db));
         Exit("prepare stm error");
       }
-
-      Print((size_t)sql.data(), "  ", (size_t)notUse, "  ", sql.data() == notUse);
     }
 
     SqlStepCode Step()
@@ -96,29 +94,10 @@ namespace SqlMy
       }
     }
 
-    void GetInt64(int index, int64_t *vp)
-    {
-      auto v = sqlite3_column_int64(m_stmt, index);
-
-      *vp = v;
-    }
-
+   
     int64_t GetInt64(int index)
     {
       return sqlite3_column_int64(m_stmt, index);
-    }
-
-    void GetText(int index, std::string *vp)
-    {
-
-      auto res = sqlite3_column_text(m_stmt, index);
-      if (res == NULL)
-      {
-        Print(sqlite3_errmsg(m_db));
-        Exit("get text error return null");
-      }
-
-      vp->append((const char *)res);
     }
 
     std::string GetText(int index)
@@ -132,17 +111,6 @@ namespace SqlMy
       }
 
       return std::string{(const char *)res};
-    }
-
-    void GetText(int index, std::function<void(const char *)> func)
-    {
-      auto res = sqlite3_column_text(m_stmt, index);
-
-      /* if(sqlite3_errcode(m_db) != SQLITE_OK){
-        Print(sqlite3_errmsg(m_db));
-        Exit("get text error");
-      } */
-      func((const char *)res);
     }
 
     
@@ -208,36 +176,7 @@ namespace SqlMy
       return p;
     }
 
-    void Inset(std::function<void(MySqliteStmt &)> resfunc)
-    {
-
-      if (Step() == SqlStepCode::ROW)
-      {
-
-        resfunc(*this);
-
-        Reset();
-      }
-      else
-      {
-
-        Exit("inset not row  error");
-      }
-    }
-
-    void Inset()
-    {
-
-      if (Step() == SqlStepCode::ROW)
-      {
-        Exit("inset has row error");
-      }
-      else
-      {
-
-        Reset();
-      }
-    }
+    
 
     ~MySqliteStmt()
     {
@@ -464,7 +403,9 @@ namespace SqlMy
   void CreateTable(std::shared_ptr<MySqliteConnect> db, const std::string& sql){
     MySqliteStmt stmt{db->Get(), sql};
 
-    stmt.Step();
+    if(stmt.Step()!= SqlStepCode::OK){
+      Exit("create table error");
+    }
 
   }
 
