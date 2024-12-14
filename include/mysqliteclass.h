@@ -1,5 +1,7 @@
 #pragma once
 
+#include <algorithm>
+#include <cstddef>
 #include <functional>
 #ifndef _MYSQLITECLASS
 #define _MYSQLITECLASS
@@ -34,15 +36,16 @@ namespace SqlMy
     sqlite3 *m_db;
 
   public:
-    MySqliteStmt(sqlite3 *db, const std::string &sql) : m_db(db)
+    MySqliteStmt(sqlite3 *db, const std::string &sql, bool is_long_use = false) : m_db(db)
     {
 
       const char *notUse = NULL;
-
-      auto res = sqlite3_prepare_v2(
+     
+      auto res = sqlite3_prepare_v3(
           m_db,
           sql.data(),
           static_cast<int>(sql.size()),
+          is_long_use ? SQLITE_PREPARE_PERSISTENT  :0,
           &m_stmt,
           &notUse);
 
@@ -92,6 +95,24 @@ namespace SqlMy
         Print(sqlite3_errmsg(m_db));
         Exit("ClaerBind stm error");
       }
+    }
+
+    std::string GetBindExpandedSql(){
+      return  GetBindExpandedSql(m_stmt);
+    }
+
+    static std::string GetBindExpandedSql(sqlite3_stmt* stmt){
+      auto p = sqlite3_expanded_sql(stmt);
+
+      if(p == NULL){
+        
+        Exit("GetBindExpandedSql stm error");
+      }
+     
+      std::string sql{p};
+      sqlite3_free(p);
+
+      return p;
     }
 
    
@@ -208,6 +229,25 @@ namespace SqlMy
     sqlite3 *Get()
     {
       return m_db;
+    }
+
+    void RegisterTrace(){
+     
+
+      auto res = sqlite3_trace_v2(m_db, SQLITE_TRACE_STMT, 
+      [](unsigned int flags, void* p, void* p2, void* p3){
+
+        Print("flags:", flags, "sql:", MySqliteStmt::GetBindExpandedSql((sqlite3_stmt*)p2));
+        return 0;
+      }, NULL);
+
+
+      if (res != SQLITE_OK)
+      {
+        Print(sqlite3_errmsg(m_db));
+        Exit("RegisterTrace error");
+      }
+
     }
 
     ~MySqliteConnect()
@@ -410,6 +450,53 @@ namespace SqlMy
   }
 
 
+  class MyTransaction{
+
+    std::unique_ptr<MySqliteStmt> m_commit;
+
+    std::unique_ptr<MySqliteStmt> m_rollback;
+
+    bool m_is_commit;
+
+    public:
+      MyTransaction(std::shared_ptr<MySqliteConnect> db){
+          MySqliteStmt begin{db->Get(), "BEGIN IMMEDIATE;"};
+
+          m_commit= std::make_unique<MySqliteStmt>(db->Get(), "COMMIT;");
+
+          m_rollback= std::make_unique<MySqliteStmt>(db->Get(), "ROLLBACK;");
+
+          m_is_commit=false;
+
+          if(begin.Step() != SqlStepCode::OK){
+            Exit("start Transaction error");
+          }
+        
+      }
+
+    
+
+    void Commit(){
+      if(m_commit->Step() != SqlStepCode::OK){
+          Exit("commit Transaction error");
+      }
+      else{
+        m_is_commit=true;
+      }
+    }
+
+    ~MyTransaction(){
+      if(m_is_commit){
+        return;
+      }
+
+      if(m_rollback->Step() != SqlStepCode::OK){
+          Exit("rollback Transaction error");
+        }
+    }
+
+  };
+
   class MyHashTable{
 
     std::shared_ptr<MySqliteConnect> m_db;
@@ -429,7 +516,7 @@ namespace SqlMy
       
          m_inset = std::make_unique<MySqliteStmt>(db->Get(), R""""(
             INSERT INTO hash_table (hash_value) VALUES (?1) RETURNING id;
-          )"""");
+          )"""", true);
         
       }
 
@@ -481,7 +568,7 @@ namespace SqlMy
       
          m_inset = std::make_unique<MySqliteStmt>(db->Get(), R""""(
             INSERT INTO fulltext_table (rowid, text) VALUES (?1, ?2);
-          )"""");
+          )"""", true);
         
       }
 
@@ -517,6 +604,58 @@ namespace SqlMy
         }
 
         
+     }
+
+  };
+
+
+  class MyTorrentFileTable{
+      std::shared_ptr<MySqliteConnect> m_db;
+      std::unique_ptr<MySqliteStmt> m_inset;
+    public:
+       MyTorrentFileTable(std::shared_ptr<MySqliteConnect> db): m_db(db){
+
+
+         
+         SqlMy::CreateTable(db,
+          R""""(
+            CREATE TABLE IF NOT EXISTS file_table (
+            id INTEGER PRIMARY KEY,
+            hash_id INTEGER NOT NULL,   
+            name TEXT NOT NULL,   
+            size INTEGER NOT NULL
+            );
+          )"""");
+
+      
+         m_inset = std::make_unique<MySqliteStmt>(db->Get(), R""""(
+            INSERT INTO file_table (hash_id, name, size) VALUES (?1, ?2, ?3) RETURNING id;
+          )"""", true);
+        
+        
+      }
+
+
+      bool Insert(int64_t hash_id,  const std::string& name, int64_t size, int64_t* pid){
+
+          m_inset->BindInt64(1,hash_id);
+          m_inset->BindText(2,name);
+          m_inset->BindInt64(3,size);
+        
+          auto res = m_inset->Step();
+          bool isok;
+          if(res == SqlStepCode::ROW){
+            
+            *pid = m_inset->GetInt64(0);
+            isok = true;
+          }
+          else{
+            isok =false;
+          }
+
+         m_inset->Reset();
+
+         return isok;
      }
 
   };

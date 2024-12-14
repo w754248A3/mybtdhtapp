@@ -45,7 +45,19 @@ namespace BtMy
         return true;
     }
 
+    void GetHashFromInfo(const lt::torrent_info& info, std::string* out){
+        auto& hash = info.info_hashes();
+
+        if(hash.has_v1()){
+            GetHash16String(hash.v1.to_string(), out);
+        }
+        else{
+            GetHash16String(hash.v2.to_string(), out);
+        }
+    }
+
     struct Torrent_Data{
+        std::string hash;
         std::string name;
         int64_t size;
         std::vector<std::pair<std::string, int64_t>> files;
@@ -53,6 +65,8 @@ namespace BtMy
 
     Torrent_Data GetTorrentData(const lt::torrent_info& info){
         Torrent_Data data{};
+
+        GetHashFromInfo(info, &data.hash);
 
         auto& name = info.name();
 
