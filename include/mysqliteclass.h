@@ -502,12 +502,6 @@ namespace SqlMy
 
   class MyHashTable{
 
-    public:
-    constexpr static auto TABLE_NAME = "hash_table";
-    constexpr static auto ITEM_ID = "id";
-    constexpr static auto ITEM_HASH = "hash_value";
-
-private:
     std::shared_ptr<MySqliteConnect> m_db;
     std::unique_ptr<MySqliteStmt> m_inset;
     public:
@@ -554,11 +548,7 @@ private:
 
 
   class MyFullTextTable{
-     public:
-     constexpr static auto TABLE_NAME = "fulltext_table";
-    constexpr static auto ITEM_ID = "rowid";
-    constexpr static auto ITEM_TEXT = "text";
- private:
+   
     std::shared_ptr<MySqliteConnect> m_db;
     std::unique_ptr<MySqliteStmt> m_inset;
     public:
@@ -623,13 +613,7 @@ private:
 
 
   class MyTorrentFileTable{
-    public:
-        constexpr static auto TABLE_NAME = "file_table";
-      constexpr static auto ITEM_ID = "id";
-      constexpr static auto ITEM_HASH_ID = "hash_id";
-      constexpr static auto ITEM_NAME = "name";
-       constexpr static auto ITEM_size = "size";
-       private:
+   
       std::shared_ptr<MySqliteConnect> m_db;
       std::unique_ptr<MySqliteStmt> m_inset;
     public:
@@ -638,32 +622,31 @@ private:
 
          
          SqlMy::CreateTable(db,
-          std::format(
           R""""(
-            CREATE TABLE IF NOT EXISTS {} (
-            {} INTEGER PRIMARY KEY,
-            {} INTEGER NOT NULL,   
-            {} TEXT NOT NULL,   
-            {} INTEGER NOT NULL
+           CREATE TABLE IF NOT EXISTS file_table (
+            id INTEGER PRIMARY KEY,
+            hash_id INTEGER NOT NULL,   
+            name TEXT NOT NULL,   
+            size INTEGER NOT NULL
             );
-          )"""", TABLE_NAME, ITEM_ID, ITEM_HASH_ID, ITEM_NAME, ITEM_size));
+          )"""");
 
       
          m_inset = std::make_unique<MySqliteStmt>(db->Get(), 
-         std::format(R""""(
-            INSERT INTO {} ({}, {}, {}) VALUES (?1, ?2, ?3) RETURNING {};
-          )"""", TABLE_NAME,  ITEM_HASH_ID, ITEM_NAME, ITEM_size, ITEM_ID), true);
+         R""""(
+            INSERT INTO file_table (hash_id, name, size) VALUES (?1, ?2, ?3) RETURNING id;
+          )"""", true);
         
         
       }
 
       void SelectNewLine(std::function<void(int64_t, int64_t, std::string&, int64_t)> func){
         MySqliteStmt stmt{m_db->Get(), 
-         std::format(R""""(
-            SELECT {}, {}, {}, {} FROM {}
-            ORDER BY {} DESC
+        R""""(
+            SELECT id, hash_id, name, size FROM file_table
+            ORDER BY id DESC
             LIMIT 300;
-          )"""",ITEM_ID,ITEM_HASH_ID, ITEM_NAME, ITEM_size,  TABLE_NAME, ITEM_ID)};
+          )""""};
 
 
           while (stmt.Step()== SqlStepCode::ROW) {
@@ -719,28 +702,17 @@ private:
 
 
     void SelectFromKey(const std::string& key, std::function<void(std::string& hash, std::string& name, int64_t size)> func){
-      MySqliteStmt stmt{m_db->Get(), std::format(R""""(
-            SELECT ht.{3}, f.{6}, f.{7}
-            FROM {0} AS f
-            JOIN {1} AS ft
-                ON f.{4} = ft.{8}
-            JOIN {2} ht
-                ON f.{5} = ht.{9}
-            WHERE {1} MATCH ?1
-            ORDER BY ft.rank  
-            LIMIT 30;  
-          )"""", 
-          MyTorrentFileTable::TABLE_NAME,
-          MyFullTextTable::TABLE_NAME,
-          MyHashTable::TABLE_NAME,
-          MyHashTable::ITEM_HASH,
-          MyTorrentFileTable::ITEM_ID,
-          MyTorrentFileTable::ITEM_HASH_ID,
-          MyTorrentFileTable::ITEM_NAME,
-          MyTorrentFileTable::ITEM_size,
-          MyFullTextTable::ITEM_ID,
-          MyHashTable::ITEM_ID
-          )};
+      MySqliteStmt stmt{m_db->Get(), R""""(
+            SELECT ht.hash_value, f.name, f.size
+            FROM file_table AS f
+            JOIN fulltext_table AS ft
+                ON f.id = ft.rowid
+            JOIN hash_table ht
+                ON f.hash_id = ht.id
+            WHERE fulltext_table MATCH ?1
+            ORDER BY ft.rank
+            LIMIT 30;
+          )""""};
 
 
           stmt.BindText(1, key);
