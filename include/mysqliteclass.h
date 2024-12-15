@@ -24,11 +24,14 @@
 namespace SqlMy
 {
 
-  enum class SqlStepCode{
-    OK,
-    ROW,
-    CONSTRAINT_UNIQUE,
-    CONSTRAINT
+  enum class SqlStepCode: int{
+    OK = SQLITE_OK,
+    STEP_ERROR=SQLITE_ERROR,
+    ROW=SQLITE_ROW,
+    CONSTRAINT_UNIQUE = SQLITE_CONSTRAINT_UNIQUE,
+    CONSTRAINT = SQLITE_CONSTRAINT,
+    DONE= SQLITE_DONE,
+
   };
 
   class MySqliteStmt
@@ -61,27 +64,24 @@ namespace SqlMy
 
     SqlStepCode Step()
     {
-      auto res = sqlite3_step(m_stmt);
+      auto res = (SqlStepCode)sqlite3_step(m_stmt);
 
-      if (res == SQLITE_ROW)
+      if (res == SqlStepCode::ROW)
       {
         return SqlStepCode::ROW;
       }
 
 
-      if (res != SQLITE_DONE && res != SQLITE_OK)
+      if (res != SqlStepCode::DONE && res != SqlStepCode::OK)
       {
+        
+        if(res ==SqlStepCode::CONSTRAINT_UNIQUE 
+        || res == SqlStepCode::CONSTRAINT){
+          return res;
+        }
         auto excode = sqlite3_extended_errcode(m_db);
        
-        if(excode==SQLITE_CONSTRAINT_UNIQUE){
-          return SqlStepCode::CONSTRAINT_UNIQUE;
-        }
-
-        if(excode==SQLITE_CONSTRAINT){
-          return SqlStepCode::CONSTRAINT;
-        }
-
-        Print("code", res, "excode:", excode, "error meg", sqlite3_errmsg(m_db));
+        Print("code", (int)res, "excode:", excode, "error meg", sqlite3_errmsg(m_db));
         Exit("step stm error");
       }
 
@@ -701,15 +701,25 @@ namespace SqlMy
     }
 
 
-    void SelectFromKey(const std::string& key, std::function<void(std::string& hash, std::string& name, int64_t size)> func){
+    void SelectFromKey(const std::string& key, std::function<void(std::string& json)> func){
       MySqliteStmt stmt{m_db->Get(), R""""(
-            SELECT ht.hash_value, f.name, f.size
+            SELECT 
+              json_object(
+                'hash_value', ht.hash_value,
+                'files',  json_group_array(
+                      json_object(
+                          'name', f.name,
+                          'size', f.size
+                      )
+                  ) 
+              ) AS json
             FROM file_table AS f
             JOIN fulltext_table AS ft
                 ON f.id = ft.rowid
             JOIN hash_table ht
                 ON f.hash_id = ht.id
             WHERE fulltext_table MATCH ?1
+            GROUP BY ht.hash_value
             ORDER BY ft.rank
             LIMIT 30;
           )""""};
@@ -719,11 +729,9 @@ namespace SqlMy
 
           while (stmt.Step()== SqlStepCode::ROW) {
           
-            auto hash = stmt.GetText(0);
-            auto name = stmt.GetText(1);
-            auto size = stmt.GetInt64(2);
+            auto json = stmt.GetText(0);
 
-            func(hash, name, size);
+            func(json);
           }
     }
 
