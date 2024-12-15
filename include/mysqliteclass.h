@@ -1,7 +1,9 @@
 #pragma once
 
+#include "mybtclass.h"
 #include <algorithm>
 #include <cstddef>
+#include <format>
 #include <functional>
 #ifndef _MYSQLITECLASS
 #define _MYSQLITECLASS
@@ -38,7 +40,7 @@ namespace SqlMy
   public:
     MySqliteStmt(sqlite3 *db, const std::string &sql, bool is_long_use = false) : m_db(db)
     {
-
+      Print(sql);
       const char *notUse = NULL;
      
       auto res = sqlite3_prepare_v3(
@@ -442,11 +444,12 @@ namespace SqlMy
 
   void CreateTable(std::shared_ptr<MySqliteConnect> db, const std::string& sql){
     MySqliteStmt stmt{db->Get(), sql};
-
+   
     if(stmt.Step()!= SqlStepCode::OK){
       Exit("create table error");
     }
 
+   
   }
 
 
@@ -499,6 +502,12 @@ namespace SqlMy
 
   class MyHashTable{
 
+    public:
+    constexpr static auto TABLE_NAME = "hash_table";
+    constexpr static auto ITEM_ID = "id";
+    constexpr static auto ITEM_HASH = "hash_value";
+
+private:
     std::shared_ptr<MySqliteConnect> m_db;
     std::unique_ptr<MySqliteStmt> m_inset;
     public:
@@ -545,7 +554,11 @@ namespace SqlMy
 
 
   class MyFullTextTable{
-
+     public:
+     constexpr static auto TABLE_NAME = "fulltext_table";
+    constexpr static auto ITEM_ID = "rowid";
+    constexpr static auto ITEM_TEXT = "text";
+ private:
     std::shared_ptr<MySqliteConnect> m_db;
     std::unique_ptr<MySqliteStmt> m_inset;
     public:
@@ -562,7 +575,7 @@ namespace SqlMy
          SqlMy::CreateTable(db,
           R""""(
             CREATE VIRTUAL TABLE IF NOT EXISTS
-             fulltext_table USING fts5(text, tokenize="mytokenizer");               
+             fulltext_table USING fts5(text, tokenize="mytokenizer", content='', columnsize=0);               
           )"""");
 
       
@@ -610,6 +623,13 @@ namespace SqlMy
 
 
   class MyTorrentFileTable{
+    public:
+        constexpr static auto TABLE_NAME = "file_table";
+      constexpr static auto ITEM_ID = "id";
+      constexpr static auto ITEM_HASH_ID = "hash_id";
+      constexpr static auto ITEM_NAME = "name";
+       constexpr static auto ITEM_size = "size";
+       private:
       std::shared_ptr<MySqliteConnect> m_db;
       std::unique_ptr<MySqliteStmt> m_inset;
     public:
@@ -618,23 +638,43 @@ namespace SqlMy
 
          
          SqlMy::CreateTable(db,
+          std::format(
           R""""(
-            CREATE TABLE IF NOT EXISTS file_table (
-            id INTEGER PRIMARY KEY,
-            hash_id INTEGER NOT NULL,   
-            name TEXT NOT NULL,   
-            size INTEGER NOT NULL
+            CREATE TABLE IF NOT EXISTS {} (
+            {} INTEGER PRIMARY KEY,
+            {} INTEGER NOT NULL,   
+            {} TEXT NOT NULL,   
+            {} INTEGER NOT NULL
             );
-          )"""");
+          )"""", TABLE_NAME, ITEM_ID, ITEM_HASH_ID, ITEM_NAME, ITEM_size));
 
       
-         m_inset = std::make_unique<MySqliteStmt>(db->Get(), R""""(
-            INSERT INTO file_table (hash_id, name, size) VALUES (?1, ?2, ?3) RETURNING id;
-          )"""", true);
+         m_inset = std::make_unique<MySqliteStmt>(db->Get(), 
+         std::format(R""""(
+            INSERT INTO {} ({}, {}, {}) VALUES (?1, ?2, ?3) RETURNING {};
+          )"""", TABLE_NAME,  ITEM_HASH_ID, ITEM_NAME, ITEM_size, ITEM_ID), true);
         
         
       }
 
+      void SelectNewLine(std::function<void(int64_t, int64_t, std::string&, int64_t)> func){
+        MySqliteStmt stmt{m_db->Get(), 
+         std::format(R""""(
+            SELECT {}, {}, {}, {} FROM {}
+            ORDER BY {} DESC
+            LIMIT 300;
+          )"""",ITEM_ID,ITEM_HASH_ID, ITEM_NAME, ITEM_size,  TABLE_NAME, ITEM_ID)};
+
+
+          while (stmt.Step()== SqlStepCode::ROW) {
+            auto id = stmt.GetInt64(0);
+            auto hash_id = stmt.GetInt64(1);
+            auto name = stmt.GetText(2);
+            auto size = stmt.GetInt64(3);
+
+            func(id, hash_id, name, size);
+          }
+      }
 
       bool Insert(int64_t hash_id,  const std::string& name, int64_t size, int64_t* pid){
 
@@ -658,6 +698,116 @@ namespace SqlMy
          return isok;
      }
 
+  };
+
+
+
+  class MyTorrentDataTable{
+    std::shared_ptr<MySqliteConnect> m_db;
+    MyTorrentFileTable m_file_table;
+    MyFullTextTable m_fulltext_table;
+    MyHashTable m_hash_table;
+
+    public:
+      MyTorrentDataTable(std::shared_ptr<MySqliteConnect> db): m_db(db), m_file_table(db), m_fulltext_table(db), m_hash_table(db){
+
+      }
+
+    auto& GetFileTable(){
+      return  m_file_table;;
+    }
+
+
+    void SelectFromKey(const std::string& key, std::function<void(std::string& hash, std::string& name, int64_t size)> func){
+      MySqliteStmt stmt{m_db->Get(), std::format(R""""(
+            SELECT ht.{3}, f.{6}, f.{7}
+            FROM {0} AS f
+            JOIN {1} AS ft
+                ON f.{4} = ft.{8}
+            JOIN {2} ht
+                ON f.{5} = ht.{9}
+            WHERE {1} MATCH ?1
+            ORDER BY ft.rank  
+            LIMIT 30;  
+          )"""", 
+          MyTorrentFileTable::TABLE_NAME,
+          MyFullTextTable::TABLE_NAME,
+          MyHashTable::TABLE_NAME,
+          MyHashTable::ITEM_HASH,
+          MyTorrentFileTable::ITEM_ID,
+          MyTorrentFileTable::ITEM_HASH_ID,
+          MyTorrentFileTable::ITEM_NAME,
+          MyTorrentFileTable::ITEM_size,
+          MyFullTextTable::ITEM_ID,
+          MyHashTable::ITEM_ID
+          )};
+
+
+          stmt.BindText(1, key);
+
+          while (stmt.Step()== SqlStepCode::ROW) {
+          
+            auto hash = stmt.GetText(0);
+            auto name = stmt.GetText(1);
+            auto size = stmt.GetInt64(2);
+
+            func(hash, name, size);
+          }
+    }
+
+
+    bool Insert(const BtMy::Torrent_Data& data){
+
+      int64_t hashid=0;
+      {
+        auto res = m_hash_table.Insert(data.hash, &hashid);
+
+        if(res != true){
+          return res;
+        }
+      }
+
+      {
+
+         
+          int64_t fulltexttableid=0;
+          auto res = m_file_table.Insert(hashid, data.name, data.size, &fulltexttableid);
+
+          if(res != true){
+            return res;
+          }
+
+
+          res = m_fulltext_table.Insert(fulltexttableid, data.name);
+
+          if(res != true){
+            return res;
+          }
+
+      }
+      
+
+      for (const auto& item : data.files) {
+
+        int64_t fulltexttableid=0;
+        auto res = m_file_table.Insert(hashid, item.first, item.second, &fulltexttableid);
+
+        if(res != true){
+          return res;
+        }
+
+
+        res = m_fulltext_table.Insert(fulltexttableid, item.first);
+
+        if(res != true){
+          return res;
+        }
+      
+      }
+
+      return true;
+
+    }
   };
 }
 
