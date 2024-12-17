@@ -1,7 +1,49 @@
+#include "include/mysqliteclass.h"
+#include "leikaifeng.h"
 #include "mysqliteclass.h"
+#include "mybtclass.h"
+#include <cstdint>
+#include <functional>
+#include <libtorrent/torrent_info.hpp>
+#include <memory>
+#include <string>
+#include <unordered_map>
+#include <vector>
 
 
 
+std::vector<BtMy::Torrent_Data> GetInfoFileNames(){
+  std::vector<std::string> vs{};
+  for (const auto & entry : std::filesystem::directory_iterator(L"./torrent")){
+
+    if(entry.is_directory()){
+      continue;
+    }
+   
+    auto p = UTF8::GetUTF8ToString(entry.path());
+    vs.push_back(p);
+
+  }
+
+  std::vector<BtMy::Torrent_Data> names{};
+ 
+  for (const auto & entry : vs){
+
+    
+
+    auto info = lt::torrent_info(entry);
+
+
+    auto data = BtMy::GetTorrentData(info);
+
+    names.push_back(data);
+  }
+
+  return names;
+}
+
+
+#ifdef FDSA
 std::vector<std::string> readAllLineFromFile(){
   std::string filePath = "text.txt"; // 你的文件路径
     std::vector<std::string> lines;
@@ -30,171 +72,182 @@ std::vector<std::string> readAllLineFromFile(){
 }
 
 
-int main2(){
-
-    MySqliteConnect db{":strmasgg56hfgfg:"};
-
-    std::string sql {R""""(
-    CREATE TABLE IF NOT EXISTS hash_table (
-    id INTEGER PRIMARY KEY,
-    hash TEXT NOT NULL,
-    length INTEGER NOT NULL,
-    name TEXT NOT NULL
-      );)""""};
-    
-    MySqliteStmt stmt{db.Get(), sql};
-
-    stmt.Step();
 
 
+void TestHashTable(std::vector<std::string>& vs){
+  auto db = std::make_shared<SqlMy::MySqliteConnect>(":strmasgg56hfgfg:");
+ 
+  
+
+  SqlMy::MyHashTable table{db};
+  //std::vector<std::string> vs{"123", "234", "123", "567", "890", "123", "123", "567"};
+
+  std::unordered_map<std::string, int> map{};
 
 
-    std::string sqlinset{R""""(
-          INSERT INTO hash_table (hash, length, name) VALUES (?1, ?2, ?3) RETURNING id;
-        )""""};
-
-  MySqliteStmt stmt2{db.Get(), sqlinset};
-
-
-  std::vector<std::string> vs{"456", "dfgg", "678"};
-
-
-  std::string en{"22222"};
-
-
-  for ( auto& n : vs)
-  {
- /*    
-    stmt2.BindText(1, n);
-
-    stmt2.BindInt64(2, 11011);
-    stmt2.BindText(3, en);
-
- */   
-     std::string en{"22222"};
-    stmt2.Bind<1>(n, (int64_t)10010, en);
-   stmt2.Inset([](MySqliteStmt& v){
-
-      auto n = v.GetInt64(0);
-
-      Print("key,", n);
-
-    });
-
-  }
-
-
-  MySqliteStmt sel{db.Get(), "SELECT * FROM hash_table;"};
-
-
-  while (sel.Step())
-  {
-    /* 
-     sel.Get([&en = en](int64_t id, std::string& hash, int64_t length, std::string& name){
-
-          Print(id, hash, length, name, en);
-     });
- */
+  Print("start loop");
+  for (const auto& n : vs) {
     int64_t id;
-    std::string hash;
-    int64_t length;
-    std::string name;
+   
+    bool isadd;
+    if(map.find(n) == map.end()){
+
+      map.emplace(n, 0);
+      isadd=true;
+    }
+    else{
+      isadd=false;
+
+    }
+
+    auto isiser = table.Insert(n, &id);
 
 
-    sel.Get2<0>(&id, &hash, &length, &name);
 
-    Print(id, hash, length, name, en);
+    if(isiser != isadd){
+      Print(n);
+      Exit("not eq error");
+    }
+
+    if(isiser){
+      Print("add ok", id);
+    }
+    else{
+      Print("not add ");
+    }
 
   }
-  
-  
+}
 
 
+void TestHashTableMain(){
+  std::vector<std::string> vs{};
+  for (const auto & entry : std::filesystem::directory_iterator(L"./torrent")){
+
+    if(entry.is_directory()){
+      continue;
+    }
    
-  Print("ok");
+    auto p = UTF8::GetUTF8ToString(entry.path());
+    vs.push_back(p);
 
-  return 0;
+  }
+
+  std::vector<std::string> hashvs{};
+ 
+  for (const auto & entry : vs){
+
+    
+
+    auto info = lt::torrent_info(entry);
+
+    auto hash = info.info_hashes().get_best().to_string();
+    std::string hashstr;
+    BtMy::GetHash16String(hash, &hashstr);
+    
+    hashvs.push_back(hashstr);
+
+  }
+
+
+  TestHashTable(hashvs);
+
+  
 }
 
 
 
-int main(){
-
-  MySqliteConnect db{":strmasgg56hfgfg:"};
-  
-  auto papi = MySqliteStmt::GetFts5ApiP(db.Get());
-
-  
-
-  MySqliteTokenizers::RegisterTokenizer(papi, "mytokenizer");
-
-
-    std::string sql {R""""(
-    CREATE VIRTUAL TABLE ft111 USING fts5(text, tokenize="mytokenizer");
-    )""""};
-
-
-    
-    MySqliteStmt stmt{db.Get(), sql};
-
-    stmt.Step();
-
-    std::string sqlinset{R""""(
-          INSERT INTO ft111 (text) VALUES (?1);
-        )""""};
-
-    MySqliteStmt stmt2{db.Get(), sqlinset};
+void TestFullTextTable(){
+  auto datas = GetInfoFileNames();
 
 
 
-    auto vs = readAllLineFromFile();
+  auto db = std::make_shared<SqlMy::MySqliteConnect>(":strmasgg56hfgfg:");
+ 
+  SqlMy::MyFullTextTable table{db};
 
-    for ( auto& n : vs)
-    {
-  
-      stmt2.Bind<1>(n);
+  {
+    SqlMy::MyTransaction tr{db};
+
+    int64_t index=0;
+    for (const auto& item : datas) {
       
+      table.Insert(index++, item.name);
 
-      stmt2.Inset();
-
+      for (const auto& fileitem : item.files) {
+          table.Insert(index++, fileitem.first);
+      }
     }
 
-
+    tr.Commit();
+  }
 
   
 
-  while(true){
-    MySqliteStmt sel{db.Get(), "SELECT text FROM ft111 WHERE ft111 MATCH ?1;"};
+  Print("starty sou");
+  db->RegisterTrace();
+  while (true) {
     std::string input;
 
     std::getline(std::cin, input);
     Print("input", input);
-      auto u8 = UTF8::GetUTF8(UTF8::GetWideChar(input));
 
-      std::string que{(const char*)u8.data(), u8.size()};
-      sel.Bind<1>(que);
-  while (sel.Step())
+    auto u8 = UTF8::GetUTF8ToString(UTF8::GetWideChar(input));
+    table.Sou(u8, [](int64_t id, std::string& text){
+      Print(UTF8::GetMultiByteFromUTF8(text));
+    });
+
+  }
+
+  
+}
+#endif
+
+
+void TestFileTable(){
+  auto datas = GetInfoFileNames();
+
+
+
+  auto db = std::make_shared<SqlMy::MySqliteConnect>(":strmasgg56hfgfg:");
+ 
+  SqlMy::MyTorrentDataTable table{db};
+
+
   {
-    /* 
-     sel.Get([&en = en](int64_t id, std::string& hash, int64_t length, std::string& name){
+    
+   
+    for (const auto& item : datas) {
+      
+      if(table.IsHaveHash(item.hash)==false){
+        table.Insert(item);
+      }
 
-          Print(id, hash, length, name, en);
-     });
- */
+      
 
-    std::string name;
+    }
+  }
+  Print("ok");
+  while (true) {
+    std::string input;
 
+    std::getline(std::cin, input);
+    Print("input", input);
 
-    sel.Get2<0>(&name);
-
-    Print(UTF8::GetMultiByteFromUTF8(name));
+    auto u8 = UTF8::GetUTF8ToString(UTF8::GetWideChar(input));
+    table.SelectFromKey(u8, [](auto& json){
+    Print(UTF8::GetMultiByteFromUTF8(json));
+    });
 
   }
-  
-  }
-
-  
-  
-
 
 }
+
+
+int main(){
+ TestFileTable();
+
+}
+
+
+

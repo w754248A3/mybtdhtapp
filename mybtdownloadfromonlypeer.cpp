@@ -1,5 +1,10 @@
+#ifndef _WIN32_WINNT
 #define _WIN32_WINNT _WIN32_WINNT_WIN8
+#endif
+
+#ifndef NTDDI_VERSION
 #define NTDDI_VERSION NTDDI_WIN8
+#endif
 
 #include <libtorrent/session.hpp>
 #include <libtorrent/add_torrent_params.hpp>

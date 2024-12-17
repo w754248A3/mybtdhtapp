@@ -153,6 +153,16 @@ my_set_target_out(testsqlite)
 
 
 
+add_executable(mybtdownloadfromonlypeer ./mybtdownloadfromonlypeer.cpp)
+
+my_set_common_properties(mybtdownloadfromonlypeer)
+
+target_precompile_headers(mybtdownloadfromonlypeer REUSE_FROM mydhtrecord)
+
+my_set_target_out(mybtdownloadfromonlypeer)
+
+
+
 add_executable(test ./test.cpp)
 
 my_set_common_properties(test)

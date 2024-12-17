@@ -452,50 +452,84 @@ namespace SqlMy
    
   }
 
-
-  class MyTransaction{
+  class MyTransactionStmt{
 
     std::unique_ptr<MySqliteStmt> m_commit;
 
     std::unique_ptr<MySqliteStmt> m_rollback;
 
+    std::unique_ptr<MySqliteStmt> m_begin;
+
+  public:
+
+    MyTransactionStmt(std::shared_ptr<MySqliteConnect> db){
+
+      m_begin = std::make_unique<MySqliteStmt>(db->Get(), "BEGIN IMMEDIATE;", true);
+
+      m_commit= std::make_unique<MySqliteStmt>(db->Get(), "COMMIT;", true);
+
+      m_rollback= std::make_unique<MySqliteStmt>(db->Get(), "ROLLBACK;", true);
+    }
+    
+    void Begin(){
+
+      m_begin->Reset();
+
+      m_commit->Reset();
+
+      m_rollback->Reset();
+
+      if(m_begin->Step() != SqlStepCode::OK){
+            Exit("start Transaction error");
+      }
+    }
+
+    void Commit(){
+        if(m_commit->Step() != SqlStepCode::OK){
+            Exit("commit Transaction error");
+        }
+    }
+
+
+    void Rollback(){
+      if(m_rollback->Step() != SqlStepCode::OK){
+          Exit("rollback Transaction error");
+        }
+    }
+
+
+
+  };
+
+
+  class MyTransaction{
+    MyTransactionStmt* m_stmt;
     bool m_is_commit;
 
     public:
-      MyTransaction(std::shared_ptr<MySqliteConnect> db){
-          MySqliteStmt begin{db->Get(), "BEGIN IMMEDIATE;"};
+      MyTransaction(MyTransactionStmt* stmt): m_stmt(stmt){
+         m_stmt->Begin();
 
-          m_commit= std::make_unique<MySqliteStmt>(db->Get(), "COMMIT;");
-
-          m_rollback= std::make_unique<MySqliteStmt>(db->Get(), "ROLLBACK;");
-
-          m_is_commit=false;
-
-          if(begin.Step() != SqlStepCode::OK){
-            Exit("start Transaction error");
-          }
+         m_is_commit=false;
         
       }
 
     
 
     void Commit(){
-      if(m_commit->Step() != SqlStepCode::OK){
-          Exit("commit Transaction error");
-      }
-      else{
-        m_is_commit=true;
-      }
+      m_stmt->Commit();
+      m_is_commit=true;
+     
     }
 
     ~MyTransaction(){
       if(m_is_commit){
         return;
       }
+      else{
+        m_stmt->Rollback();
+      }
 
-      if(m_rollback->Step() != SqlStepCode::OK){
-          Exit("rollback Transaction error");
-        }
     }
 
   };
@@ -504,6 +538,7 @@ namespace SqlMy
 
     std::shared_ptr<MySqliteConnect> m_db;
     std::unique_ptr<MySqliteStmt> m_inset;
+    std::unique_ptr<MySqliteStmt> m_is_have_hash;
     public:
       MyHashTable(std::shared_ptr<MySqliteConnect> db): m_db(db){
 
@@ -520,7 +555,37 @@ namespace SqlMy
          m_inset = std::make_unique<MySqliteStmt>(db->Get(), R""""(
             INSERT INTO hash_table (hash_value) VALUES (?1) RETURNING id;
           )"""", true);
+
+        m_is_have_hash =  std::make_unique<MySqliteStmt>(db->Get(), R""""(
+            SELECT id FROM hash_table
+            WHERE hash_value = ?1
+            LIMIT 1;
+          )"""", true);
+
         
+      }
+
+      bool IsHaveHash(const std::string& s){
+
+          m_is_have_hash->Reset();
+
+          m_is_have_hash->BindText(1, s);
+
+          auto res = m_is_have_hash->Step();
+
+          if(res == SqlStepCode::ROW){
+            return true;
+          }
+          else if (res == SqlStepCode::OK) {
+            return false;
+          
+          }
+          else{
+            Exit("HaveHash value result other code");
+            return false;
+          }
+
+          
       }
 
      bool Insert(const std::string& s, int64_t* pid){
@@ -690,9 +755,9 @@ namespace SqlMy
     MyTorrentFileTable m_file_table;
     MyFullTextTable m_fulltext_table;
     MyHashTable m_hash_table;
-
+    MyTransactionStmt m_transaction;
     public:
-      MyTorrentDataTable(std::shared_ptr<MySqliteConnect> db): m_db(db), m_file_table(db), m_fulltext_table(db), m_hash_table(db){
+      MyTorrentDataTable(std::shared_ptr<MySqliteConnect> db): m_db(db), m_file_table(db), m_fulltext_table(db), m_hash_table(db), m_transaction(db){
 
       }
 
@@ -735,8 +800,25 @@ namespace SqlMy
           }
     }
 
+    bool IsHaveHash(const std::string& key){
+      return m_hash_table.IsHaveHash(key);
+    }
 
     bool Insert(const BtMy::Torrent_Data& data){
+        MyTransaction tr{&m_transaction};
+
+        auto res = _Insert(data);
+
+        if(res){
+          tr.Commit();
+        }
+        
+
+        return res;
+    }
+
+    private:
+    bool _Insert(const BtMy::Torrent_Data& data){
 
       int64_t hashid=0;
       {
