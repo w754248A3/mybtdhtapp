@@ -536,6 +536,57 @@ namespace SqlMy
 
   };
 
+  
+  class MyHashCountTable{
+
+    std::shared_ptr<MySqliteConnect> m_db;
+    std::unique_ptr<MySqliteStmt> m_inset;
+   
+    public:
+      MyHashCountTable(std::shared_ptr<MySqliteConnect> db): m_db(db){
+
+         SqlMy::CreateTable(db,
+          R""""(
+            CREATE TABLE IF NOT EXISTS hash_count_table (
+            id INTEGER PRIMARY KEY,
+            hash_value TEXT NOT NULL,   
+            count INTEGER NOT NULL DEFAULT 1,    
+            UNIQUE(hash_value)                   
+              );
+          )"""");
+
+      
+         m_inset = std::make_unique<MySqliteStmt>(db->Get(), R""""(
+            INSERT INTO hash_count_table (hash_value) VALUES (?1)
+            ON CONFLICT(hash_value) DO UPDATE SET count=count+1
+            RETURNING count;
+          )"""", true);
+
+        
+      }
+
+     bool Insert(const std::string& s, int64_t* pcount){
+          m_inset->Reset();
+          m_inset->BindText(1, s);
+        
+          auto res = m_inset->Step();
+       
+          if(res == SqlStepCode::ROW){
+            
+            *pcount = m_inset->GetInt64(0);
+          
+            return m_inset->Step() == SqlStepCode::OK;
+          }
+          else{
+            return false;
+          }
+
+
+     }
+
+  };
+
+
   class MyHashTable{
 
     std::shared_ptr<MySqliteConnect> m_db;
@@ -697,6 +748,16 @@ namespace SqlMy
             size INTEGER NOT NULL
             );
           )"""");
+
+          {
+            MySqliteStmt stmt{db->Get(), R""""(
+                    CREATE INDEX IF NOT EXISTS count_index_name ON file_table (hash_id);
+              )""""};
+
+              if(stmt.Step() != SqlStepCode::OK){
+                Exit("create index on file_table error");
+              }
+          }
 
       
          m_inset = std::make_unique<MySqliteStmt>(db->Get(), 
