@@ -39,6 +39,7 @@ namespace SqlMy
 
     sqlite3_stmt *m_stmt;
     sqlite3 *m_db;
+    int m_up_step_code;
 
   public:
     MySqliteStmt(sqlite3 *db, const std::string &sql, bool is_long_use = false) : m_db(db)
@@ -65,7 +66,7 @@ namespace SqlMy
     SqlStepCode Step()
     {
       auto res = (SqlStepCode)sqlite3_step(m_stmt);
-
+      m_up_step_code=(int)res;
       if (res == SqlStepCode::ROW)
       {
         return SqlStepCode::ROW;
@@ -139,7 +140,7 @@ namespace SqlMy
     
     void Reset()
     {
-      auto uperrorcode =  sqlite3_errcode(m_db);
+      auto uperrorcode =  m_up_step_code;
 
       auto res = sqlite3_reset(m_stmt);
 
@@ -216,9 +217,10 @@ namespace SqlMy
   public:
     MySqliteConnect(const std::string &path)
     {
-
+      auto flags = SQLITE_OPEN_NOMUTEX
+      |SQLITE_OPEN_MEMORY | SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE;
       auto res = sqlite3_open_v2(path.c_str(),
-                                 &m_db, SQLITE_OPEN_MEMORY | SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, NULL);
+                                 &m_db, flags, NULL);
 
       if (res != SQLITE_OK)
       {
@@ -472,12 +474,13 @@ namespace SqlMy
     }
     
     void Begin(){
+      //貌似非bing参数的语句不需要Reset;
 
-      m_begin->Reset();
+      //m_begin->Reset();
 
-      m_commit->Reset();
+      //m_commit->Reset();
 
-      m_rollback->Reset();
+      //m_rollback->Reset();
 
       if(m_begin->Step() != SqlStepCode::OK){
             Exit("start Transaction error");
@@ -519,7 +522,6 @@ namespace SqlMy
     void Commit(){
       m_stmt->Commit();
       m_is_commit=true;
-     
     }
 
     ~MyTransaction(){
@@ -589,23 +591,22 @@ namespace SqlMy
       }
 
      bool Insert(const std::string& s, int64_t* pid){
-
+          m_inset->Reset();
           m_inset->BindText(1, s);
         
           auto res = m_inset->Step();
-          bool isok;
+       
           if(res == SqlStepCode::ROW){
             
             *pid = m_inset->GetInt64(0);
-            isok = true;
+          
+            return m_inset->Step() == SqlStepCode::OK;
           }
           else{
-            isok =false;
+            return false;
           }
 
-         m_inset->Reset();
 
-         return isok;
      }
 
   };
@@ -642,6 +643,7 @@ namespace SqlMy
 
 
       bool Insert(int64_t id, const std::string& s){
+          m_inset->Reset();
 
           m_inset->BindInt64(1, id);
           m_inset->BindText(2, s);
@@ -649,7 +651,7 @@ namespace SqlMy
           auto res = m_inset->Step();
           bool isok= res == SqlStepCode::OK;
          
-         m_inset->Reset();
+         
 
          return isok;
      }
@@ -725,25 +727,24 @@ namespace SqlMy
       }
 
       bool Insert(int64_t hash_id,  const std::string& name, int64_t size, int64_t* pid){
+          m_inset->Reset();
 
           m_inset->BindInt64(1,hash_id);
           m_inset->BindText(2,name);
           m_inset->BindInt64(3,size);
         
           auto res = m_inset->Step();
-          bool isok;
+       
           if(res == SqlStepCode::ROW){
             
             *pid = m_inset->GetInt64(0);
-            isok = true;
+          
+            return m_inset->Step() == SqlStepCode::OK;
           }
           else{
-            isok =false;
+            return false;
           }
 
-         m_inset->Reset();
-
-         return isok;
      }
 
   };
