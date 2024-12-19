@@ -32,7 +32,7 @@ function(my_set_common_properties target)
    
     target_include_directories(${target} PUBLIC
         ${MY_DIR_PATH}/include
-        ${MY_DIR_PATH}/../CppHttpFileServer
+        ${MY_DIR_PATH}/../CppHttpFileServer/include
     )
 
 
@@ -143,6 +143,8 @@ add_executable(testsqlite
 ./include/mybtclass.h
 ./include/mysqliteclass.h
 ./include/mytf.h
+./../CppHttpFileServer/include/leikaifeng.h
+./../CppHttpFileServer/include/myio.h
 ./testsqlite.cpp)
 
 my_set_common_properties(testsqlite)

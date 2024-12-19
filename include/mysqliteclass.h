@@ -5,6 +5,7 @@
 #include <cstddef>
 #include <format>
 #include <functional>
+#include <wininet.h>
 #ifndef _MYSQLITECLASS
 #define _MYSQLITECLASS
 
@@ -818,9 +819,34 @@ namespace SqlMy
     MyFullTextTable m_fulltext_table;
     MyHashTable m_hash_table;
     MyTransactionStmt m_transaction;
+    std::unique_ptr<MySqliteStmt> m_select_from_key;
     public:
       MyTorrentDataTable(std::shared_ptr<MySqliteConnect> db): m_db(db), m_file_table(db), m_fulltext_table(db), m_hash_table(db), m_transaction(db){
-
+          m_select_from_key = std::make_unique<MySqliteStmt>(m_db->Get(), R""""(
+            WITH subquery AS (
+                  SELECT 
+                    json_object(
+                      'hash_value', ht.hash_value,
+                      'files',  json_group_array(
+                            json_object(
+                                'name', f.name,
+                                'size', f.size
+                            )
+                        ) 
+                    ) AS json
+                  FROM file_table AS f
+                  JOIN fulltext_table AS ft
+                      ON f.id = ft.rowid
+                  JOIN hash_table ht
+                      ON f.hash_id = ht.id
+                  WHERE fulltext_table MATCH ?1
+                  GROUP BY ht.hash_value
+                  ORDER BY ft.rank
+                  LIMIT 30 OFFSET 0
+          )
+          SELECT json_group_array(json) AS json_array
+          FROM subquery;
+          )"""");
       }
 
     auto& GetFileTable(){
@@ -828,37 +854,21 @@ namespace SqlMy
     }
 
 
-    void SelectFromKey(const std::string& key, std::function<void(std::string& json)> func){
-      MySqliteStmt stmt{m_db->Get(), R""""(
-            SELECT 
-              json_object(
-                'hash_value', ht.hash_value,
-                'files',  json_group_array(
-                      json_object(
-                          'name', f.name,
-                          'size', f.size
-                      )
-                  ) 
-              ) AS json
-            FROM file_table AS f
-            JOIN fulltext_table AS ft
-                ON f.id = ft.rowid
-            JOIN hash_table ht
-                ON f.hash_id = ht.id
-            WHERE fulltext_table MATCH ?1
-            GROUP BY ht.hash_value
-            ORDER BY ft.rank
-            LIMIT 30;
-          )""""};
+    bool SelectFromKey(const std::string& key, std::string* str){
+          
+          auto& stmt = *m_select_from_key;
 
+          stmt.Reset();
 
           stmt.BindText(1, key);
 
-          while (stmt.Step()== SqlStepCode::ROW) {
-          
-            auto json = stmt.GetText(0);
+          if(stmt.Step()== SqlStepCode::ROW){
+            *str = std::move(stmt.GetText(0));
 
-            func(json);
+            return stmt.Step()== SqlStepCode::OK;
+          }
+          else{
+            return false;
           }
     }
 
