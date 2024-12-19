@@ -816,18 +816,14 @@ namespace SqlMy
 
   };
 
+  class MyWebViewSelectClass{
 
-
-  class MyTorrentDataTable{
     std::shared_ptr<MySqliteConnect> m_db;
-    MyTorrentFileTable m_file_table;
-    MyFullTextTable m_fulltext_table;
-    MyHashTable m_hash_table;
-    MyTransactionStmt m_transaction;
     std::unique_ptr<MySqliteStmt> m_select_from_key;
+
     public:
-      MyTorrentDataTable(std::shared_ptr<MySqliteConnect> db): m_db(db), m_file_table(db), m_fulltext_table(db), m_hash_table(db), m_transaction(db){
-          m_select_from_key = std::make_unique<MySqliteStmt>(m_db->Get(), R""""(
+      MyWebViewSelectClass(std::shared_ptr<MySqliteConnect> db): m_db(db){
+        m_select_from_key = std::make_unique<MySqliteStmt>(m_db->Get(), R""""(
             WITH subquery AS (
                   SELECT 
                     json_object(
@@ -854,11 +850,7 @@ namespace SqlMy
           )"""");
       }
 
-    auto& GetFileTable(){
-      return  m_file_table;;
-    }
-
-
+      
     bool SelectFromKey(const std::string& key, std::string* str){
           
           auto& stmt = *m_select_from_key;
@@ -876,6 +868,24 @@ namespace SqlMy
             return false;
           }
     }
+  };
+
+  class MyDataInsertClass{
+    std::shared_ptr<MySqliteConnect> m_db;
+    MyTorrentFileTable m_file_table;
+    MyFullTextTable m_fulltext_table;
+    MyHashTable m_hash_table;
+    MyTransactionStmt m_transaction;
+    public:
+      MyDataInsertClass(std::shared_ptr<MySqliteConnect> db): m_db(db), m_file_table(db), m_fulltext_table(db), m_hash_table(db), m_transaction(db){
+         
+      }
+
+    auto& GetFileTable(){
+      return  m_file_table;;
+    }
+
+
 
     bool IsHaveHash(const std::string& key){
       return m_hash_table.IsHaveHash(key);

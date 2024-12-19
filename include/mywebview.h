@@ -17,7 +17,7 @@ std::u8string ToU8String(const std::string& s){
     return std::u8string{(const char8_t*)s.data(), s.size()};
 }
 
-void Response(std::shared_ptr<TcpSocket> con, std::unique_ptr<HttpReqest> request, std::shared_ptr<SqlMy::MyTorrentDataTable> table) {
+void Response(std::shared_ptr<TcpSocket> con, std::unique_ptr<HttpReqest> request, std::shared_ptr<SqlMy::MyWebViewSelectClass> table) {
 
   auto key = request->GetQueryValue(u8"key");
 
@@ -45,7 +45,7 @@ void Response(std::shared_ptr<TcpSocket> con, std::unique_ptr<HttpReqest> reques
 
 }
 
-void RequestLoop(std::shared_ptr<TcpSocket> con, std::shared_ptr<SqlMy::MyTorrentDataTable> table) {
+void RequestLoop(std::shared_ptr<TcpSocket> con, std::shared_ptr<SqlMy::MyWebViewSelectClass> table) {
 
   try {
     int n = 0;
@@ -68,13 +68,13 @@ void RequestLoop(std::shared_ptr<TcpSocket> con, std::shared_ptr<SqlMy::MyTorren
   }
 }
 
-void Func(std::shared_ptr<SqlMy::MyTorrentDataTable> table) {
+void Func(std::shared_ptr<SqlMy::MyWebViewSelectClass> table) {
   Info::Initialization();
 
   auto f = new Fiber{};
 
   f->Start(
-      [](std::shared_ptr<SqlMy::MyTorrentDataTable> table) {
+      [](std::shared_ptr<SqlMy::MyWebViewSelectClass> table) {
         TcpSocketListen lis{};
         lis.Bind(IPEndPoint{127, 0, 0, 1, 80});
         lis.Listen(1);
