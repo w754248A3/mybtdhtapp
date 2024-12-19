@@ -64,10 +64,15 @@ namespace SqlMy
       }
     }
 
-    SqlStepCode Step()
+    SqlStepCode Step(bool is_errorCode_exit= true)
     {
       auto res = (SqlStepCode)sqlite3_step(m_stmt);
       m_up_step_code=(int)res;
+
+      if(is_errorCode_exit ==false && res == SqlStepCode::STEP_ERROR){
+        return res;
+      }
+
       if (res == SqlStepCode::ROW)
       {
         return SqlStepCode::ROW;
@@ -862,7 +867,7 @@ namespace SqlMy
 
           stmt.BindText(1, key);
 
-          if(stmt.Step()== SqlStepCode::ROW){
+          if(stmt.Step(false)== SqlStepCode::ROW){
             *str = std::move(stmt.GetText(0));
 
             return stmt.Step()== SqlStepCode::OK;
