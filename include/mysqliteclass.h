@@ -223,8 +223,8 @@ namespace SqlMy
   public:
     MySqliteConnect(const std::string &path)
     {
-      auto flags = SQLITE_OPEN_NOMUTEX
-      |SQLITE_OPEN_MEMORY | SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE;
+      auto flags = SQLITE_OPEN_NOMUTEX |   SQLITE_OPEN_READWRITE| SQLITE_OPEN_CREATE;
+
       auto res = sqlite3_open_v2(path.c_str(),
                                  &m_db, flags, NULL);
 
@@ -823,6 +823,20 @@ namespace SqlMy
 
     public:
       MyWebViewSelectClass(std::shared_ptr<MySqliteConnect> db): m_db(db){
+
+
+        auto papi = MySqliteStmt::GetFts5ApiP(db->Get());
+
+  
+
+        MySqliteTokenizers::RegisterTokenizer(papi, "mytokenizer");
+
+
+
+
+
+
+
         m_select_from_key = std::make_unique<MySqliteStmt>(m_db->Get(), R""""(
             WITH subquery AS (
                   SELECT 
