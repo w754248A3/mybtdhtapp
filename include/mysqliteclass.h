@@ -831,13 +831,8 @@ namespace SqlMy
 
         MySqliteTokenizers::RegisterTokenizer(papi, "mytokenizer");
 
-
-
-
-
-
-
-        m_select_from_key = std::make_unique<MySqliteStmt>(m_db->Get(), R""""(
+/* 
+m_select_from_key = std::make_unique<MySqliteStmt>(m_db->Get(), R""""(
             WITH subquery AS (
                   SELECT 
                     json_object(
@@ -861,7 +856,45 @@ namespace SqlMy
           )
           SELECT json_group_array(json(json_value_1)) AS json_array
           FROM subquery;
-          )"""");
+          )""""); */
+
+
+          m_select_from_key = std::make_unique<MySqliteStmt>(m_db->Get(), R""""(
+            WITH textquery AS (
+              SELECT rowid, rank  FROM fulltext_table
+              WHERE fulltext_table MATCH ?1  
+            ),
+            filegroupquery AS (
+              SELECT DISTINCT ft.hash_id, tq.rank FROM file_table AS ft
+              JOIN textquery AS tq
+              ON tq.rowid = ft.id         
+            ),
+            fullfilequery AS(
+              SELECT ft.hash_id, ft.name, ft.size, fg.rank  FROM file_table AS ft
+              JOIN filegroupquery AS fg
+              ON fg.hash_id = ft.hash_id
+            ),
+            subquery AS (
+              SELECT 
+                json_object(
+                  'hash_value', ht.hash_value,
+                  'files',  json_group_array(
+                        json_object(
+                            'name', f.name,
+                            'size', f.size
+                        )
+                    ) 
+                ) AS json_value_1
+              FROM hash_table AS ht
+              JOIN fullfilequery AS f
+                  ON ht.id = f.hash_id
+              GROUP BY ht.hash_value
+              ORDER BY f.rank
+              LIMIT ?2 OFFSET ?3
+          )
+          SELECT json_group_array(json(json_value_1)) AS json_array
+          FROM subquery;
+          )""""); 
       }
 
       
