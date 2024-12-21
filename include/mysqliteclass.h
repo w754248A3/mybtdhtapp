@@ -848,7 +848,7 @@ namespace SqlMy
                                 'size', f.size
                             )
                         ) 
-                    ) AS json
+                    ) AS json_value_1
                   FROM file_table AS f
                   JOIN fulltext_table AS ft
                       ON f.id = ft.rowid
@@ -859,7 +859,7 @@ namespace SqlMy
                   ORDER BY ft.rank
                   LIMIT 30 OFFSET 0
           )
-          SELECT json_group_array(json) AS json_array
+          SELECT json_group_array(json(json_value_1)) AS json_array
           FROM subquery;
           )"""");
       }

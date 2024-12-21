@@ -17,27 +17,76 @@ std::u8string ToU8String(const std::string& s){
     return std::u8string{(const char8_t*)s.data(), s.size()};
 }
 
-void Response(std::shared_ptr<TcpSocket> con, std::unique_ptr<HttpReqest> request, std::shared_ptr<SqlMy::MyWebViewSelectClass> table) {
+struct RequestData{
 
-  auto key = request->GetQueryValue(u8"key");
+  std::shared_ptr<TcpSocket> connect;
+
+  std::unique_ptr<HttpReqest> request;
+
+  std::shared_ptr<SqlMy::MyWebViewSelectClass> table;
+
+
+  std::wstring path;
+};
+
+bool ResponseFile(std::shared_ptr<RequestData> data){
+  auto path = UTF8::GetWideChar(data->request->GetPath());
+
+    
+    if(path.starts_with(L"/app")){
+        path = data->path +path.substr(4);
+
+        if(File::IsFileOrFolder(path).IsFile()){
+            
+        HttpResponseFileContent response{ path };
+            
+            response.SetRangeFromRequest(*data->request);
+
+            response.Send(data->connect);
+
+        }
+        else{
+
+            HttpResponse404 res404{};
+            res404.Send(data->connect);
+
+        }
+
+
+
+        return true;
+    }
+    else{
+      return false;
+    }
+}
+
+
+void Response(std::shared_ptr<RequestData> data) {
+
+  if(ResponseFile(data)){
+    return;
+  }
+
+  auto key = data->request->GetQueryValue(u8"key");
 
   if(key == u8"")
   {
     HttpResponse404 res404{};
-    res404.Send(con);
+    res404.Send(data->connect);
 
     return;
   }
     Print(UTF8::GetStdOut(key));
     std::string str{};
-    if(table->SelectFromKey(ToString(key), &str)){
-        HttpResponseStrContent connect{200, std::move(ToU8String(str))};
+    if(data->table->SelectFromKey(ToString(key), &str)){
+        HttpResponseStrContent connect{200, std::move(ToU8String(str)), HttpResponseStrContent::JSON_TYPE};
 
-        connect.Send(con);
+        connect.Send(data->connect);
     }
     else{
         HttpResponse404 res404{};
-    res404.Send(con);
+    res404.Send(data->connect);
     }
   
 
@@ -45,16 +94,16 @@ void Response(std::shared_ptr<TcpSocket> con, std::unique_ptr<HttpReqest> reques
 
 }
 
-void RequestLoop(std::shared_ptr<TcpSocket> con, std::shared_ptr<SqlMy::MyWebViewSelectClass> table) {
+void RequestLoop(std::shared_ptr<RequestData> data) {
 
   try {
     int n = 0;
 
     while (true) {
 
-      auto request = HttpReqest::Read(con);
+      data->request = HttpReqest::Read(data->connect);
 
-      Response(con, std::move(request), table);
+      Response(data);
       n++;
 
       Print(n, "re use link");
@@ -68,24 +117,29 @@ void RequestLoop(std::shared_ptr<TcpSocket> con, std::shared_ptr<SqlMy::MyWebVie
   }
 }
 
-void Func(std::shared_ptr<SqlMy::MyWebViewSelectClass> table) {
+void Func(std::shared_ptr<SqlMy::MyWebViewSelectClass> table, std::wstring path) {
   Info::Initialization();
 
   auto f = new Fiber{};
 
   f->Start(
-      [](std::shared_ptr<SqlMy::MyWebViewSelectClass> table) {
+      [](std::shared_ptr<SqlMy::MyWebViewSelectClass> table, std::wstring path) {
         TcpSocketListen lis{};
         lis.Bind(IPEndPoint{127, 0, 0, 1, 80});
         lis.Listen(1);
 
         while (true) {
-          auto connect = lis.Accept();
+          auto data = std::make_shared<RequestData>();
 
-          Fiber::GetThis().Create(RequestLoop, connect, table);
+          data->connect = lis.Accept();
+
+          data->table=table;
+          data->path=path;
+
+          Fiber::GetThis().Create(RequestLoop, data);
         }
       },
-      table);
+      table, path);
 }
 } // namespace MyWebView
 
