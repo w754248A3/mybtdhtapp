@@ -1,5 +1,7 @@
 #pragma once
 #include <algorithm>
+#include <cstddef>
+#include <cstdint>
 #include <memory>
 #include <string>
 #ifndef _MYWEBVIEW
@@ -77,9 +79,19 @@ void Response(std::shared_ptr<RequestData> data) {
 
     return;
   }
+
+    auto pagestr = data->request->GetQueryValue(u8"page");
+    size_t page=0;
+    Number::Parse(pagestr, page);
+
+    int64_t count = 30;
+
+    auto offset = count*((int64_t)page);
+
+
     Print(UTF8::GetStdOut(key));
     std::string str{};
-    if(data->table->SelectFromKey(ToString(key), &str)){
+    if(data->table->SelectFromKey(ToString(key),count, offset, &str)){
         HttpResponseStrContent connect{200, std::move(ToU8String(str)), HttpResponseStrContent::JSON_TYPE};
 
         connect.Send(data->connect);

@@ -857,7 +857,7 @@ namespace SqlMy
                   WHERE fulltext_table MATCH ?1
                   GROUP BY ht.hash_value
                   ORDER BY ft.rank
-                  LIMIT 30 OFFSET 0
+                  LIMIT ?2 OFFSET ?3
           )
           SELECT json_group_array(json(json_value_1)) AS json_array
           FROM subquery;
@@ -865,13 +865,16 @@ namespace SqlMy
       }
 
       
-    bool SelectFromKey(const std::string& key, std::string* str){
+    bool SelectFromKey(const std::string& key, int64_t count, int64_t offset, std::string* str){
           
           auto& stmt = *m_select_from_key;
 
           stmt.Reset();
 
           stmt.BindText(1, key);
+
+          stmt.BindInt64(2, count);
+          stmt.BindInt64(3, offset);
 
           if(stmt.Step(false)== SqlStepCode::ROW){
             *str = std::move(stmt.GetText(0));
