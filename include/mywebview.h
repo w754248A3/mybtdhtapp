@@ -70,36 +70,53 @@ void Response(std::shared_ptr<RequestData> data) {
     return;
   }
 
-  auto key = data->request->GetQueryValue(u8"key");
+  auto pagestr = data->request->GetQueryValue(u8"page");
+  size_t page=0;
+  Number::Parse(pagestr, page);
 
-  if(key == u8"")
+  int64_t count = 30;
+
+  auto offset = count*((int64_t)page);
+
+
+
+  auto key = data->request->GetQueryValue(u8"key");
+  auto selnew = data->request->GetQueryValue(u8"new");
+  if(key != u8"")
   {
+      Print(UTF8::GetStdOut(key));
+      std::string str{};
+      if(data->table->SelectFromKey(ToString(key),count, offset, &str)){
+          HttpResponseStrContent connect{200, std::move(ToU8String(str)), HttpResponseStrContent::JSON_TYPE};
+
+          connect.Send(data->connect);
+      }
+      else{
+          HttpResponse404 res404{};
+      res404.Send(data->connect);
+      }
+  }
+  else if(selnew != u8""){
+      std::string str{};
+      if(data->table->SelectNewLine(count, offset, &str)){
+          HttpResponseStrContent connect{200, std::move(ToU8String(str)), HttpResponseStrContent::JSON_TYPE};
+
+          connect.Send(data->connect);
+      }
+      else{
+          HttpResponse404 res404{};
+      res404.Send(data->connect);
+      }
+  }
+  else{
     HttpResponse404 res404{};
     res404.Send(data->connect);
 
     return;
   }
 
-    auto pagestr = data->request->GetQueryValue(u8"page");
-    size_t page=0;
-    Number::Parse(pagestr, page);
-
-    int64_t count = 30;
-
-    auto offset = count*((int64_t)page);
-
-
-    Print(UTF8::GetStdOut(key));
-    std::string str{};
-    if(data->table->SelectFromKey(ToString(key),count, offset, &str)){
-        HttpResponseStrContent connect{200, std::move(ToU8String(str)), HttpResponseStrContent::JSON_TYPE};
-
-        connect.Send(data->connect);
-    }
-    else{
-        HttpResponse404 res404{};
-    res404.Send(data->connect);
-    }
+    
+   
   
 
   

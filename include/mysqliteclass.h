@@ -820,7 +820,7 @@ namespace SqlMy
 
     std::shared_ptr<MySqliteConnect> m_db;
     std::unique_ptr<MySqliteStmt> m_select_from_key;
-
+    std::unique_ptr<MySqliteStmt> m_select_from_new;
     public:
       MyWebViewSelectClass(std::shared_ptr<MySqliteConnect> db): m_db(db){
 
@@ -831,33 +831,6 @@ namespace SqlMy
 
         MySqliteTokenizers::RegisterTokenizer(papi, "mytokenizer");
 
-/* 
-m_select_from_key = std::make_unique<MySqliteStmt>(m_db->Get(), R""""(
-            WITH subquery AS (
-                  SELECT 
-                    json_object(
-                      'hash_value', ht.hash_value,
-                      'files',  json_group_array(
-                            json_object(
-                                'name', f.name,
-                                'size', f.size
-                            )
-                        ) 
-                    ) AS json_value_1
-                  FROM file_table AS f
-                  JOIN fulltext_table AS ft
-                      ON f.id = ft.rowid
-                  JOIN hash_table ht
-                      ON f.hash_id = ht.id
-                  WHERE fulltext_table MATCH ?1
-                  GROUP BY ht.hash_value
-                  ORDER BY ft.rank
-                  LIMIT ?2 OFFSET ?3
-          )
-          SELECT json_group_array(json(json_value_1)) AS json_array
-          FROM subquery;
-          )""""); */
-
 
           m_select_from_key = std::make_unique<MySqliteStmt>(m_db->Get(), R""""(
             WITH textquery AS (
@@ -865,9 +838,10 @@ m_select_from_key = std::make_unique<MySqliteStmt>(m_db->Get(), R""""(
               WHERE fulltext_table MATCH ?1  
             ),
             filegroupquery AS (
-              SELECT DISTINCT ft.hash_id, tq.rank FROM file_table AS ft
+              SELECT ft.hash_id, min(tq.rank) AS rank FROM file_table AS ft
               JOIN textquery AS tq
-              ON tq.rowid = ft.id         
+              ON tq.rowid = ft.id 
+              GROUP BY ft.hash_id      
             ),
             fullfilequery AS(
               SELECT ft.hash_id, ft.name, ft.size, fg.rank  FROM file_table AS ft
@@ -895,8 +869,50 @@ m_select_from_key = std::make_unique<MySqliteStmt>(m_db->Get(), R""""(
           SELECT json_group_array(json(json_value_1)) AS json_array
           FROM subquery;
           )""""); 
+
+
+          m_select_from_new = std::make_unique<MySqliteStmt>(m_db->Get(), R""""(
+            WITH 
+            subquery AS (
+              SELECT 
+                json_object(
+                  'hash_value', ht.hash_value,
+                  'files',  json_group_array(
+                        json_object(
+                            'name', f.name,
+                            'size', f.size
+                        )
+                    ) 
+                ) AS json_value_1
+              FROM hash_table AS ht
+              JOIN file_table AS f
+                  ON ht.id = f.hash_id
+              GROUP BY ht.hash_value
+              ORDER BY f.id DESC
+              LIMIT ?1 OFFSET ?2
+          )
+          SELECT json_group_array(json(json_value_1)) AS json_array
+          FROM subquery;
+          )""""); 
       }
 
+    bool SelectNewLine(int64_t count, int64_t offset, std::string* str){
+          auto& stmt = *m_select_from_new;
+
+          stmt.Reset();
+
+          stmt.BindInt64(1, count);
+          stmt.BindInt64(2, offset);
+
+          if(stmt.Step(false)== SqlStepCode::ROW){
+            *str = std::move(stmt.GetText(0));
+
+            return stmt.Step()== SqlStepCode::OK;
+          }
+          else{
+            return false;
+          }
+    }
       
     bool SelectFromKey(const std::string& key, int64_t count, int64_t offset, std::string* str){
           
