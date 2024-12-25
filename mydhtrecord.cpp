@@ -1,3 +1,5 @@
+#include <boost/date_time/posix_time/posix_time_duration.hpp>
+#include <thread>
 #ifndef _WIN32_WINNT
 #define _WIN32_WINNT _WIN32_WINNT_WIN8
 #endif
@@ -18,22 +20,9 @@
 #include <fstream>
 #include <format>
 #include "leikaifeng.h"
-
-std::string getstring(const std::string &s)
-{
-        std::string res{};
-        char buf[] = "0123456789ABCDEFD";
-
-        for (auto i : s)
-        {
-                std::string hexString = std::format("{:02X}", i);
-
-                res.append(hexString);
-        }
-
-        return res;
-}
-
+#include "mysqliteclass.h"
+#include "mybtclass.h"
+#include "mywebview.h"
 boost::asio::ip::address createaddress(const char *str)
 {
 
@@ -53,6 +42,34 @@ void settorrent(lt::add_torrent_params &p)
 
         p.save_path = "D:/mybtdownload/"; // save in current dir
 }
+
+void isaddtorreent(lt::session &ses, lt::sha1_hash &hash, SqlMy::MyHashCountTable& counttable){
+        std::string key{};
+
+        BtMy::GetHash16String(hash.to_string(), &key);
+        int64_t n=0;
+        if(!counttable.Insert(key, &n)){
+                Print("inset count table false");
+        }
+
+
+        Print("count ",n);
+
+
+        if(n ==1){
+                lt::add_torrent_params p{};
+
+                p.info_hashes = lt::info_hash_t{hash};
+
+                settorrent(p);
+
+                ses.async_add_torrent(p);
+        }
+        else{
+                Print("count > 1 ",n, key);
+        }
+}
+
 
 void addtorrent(lt::session &ses, lt::sha1_hash &hash, std::unordered_map<std::string, int> &map)
 {
@@ -91,7 +108,7 @@ void WriteBuffToFile(std::vector<char> &buff, const std::string &path)
     }
 
     // 将字节缓冲区写入文件
-    outputFile.write(buff.data(), buff.size());
+    outputFile.write(buff.data(), (long long)buff.size());
 
     if (!outputFile)
     {
@@ -110,7 +127,10 @@ void SaveTorrentFile(const lt::torrent_info& info){
         std::vector<char> buffer;
         bencode(std::back_inserter(buffer), te);
 
-        auto filename =std::string{"./torrent/"} + getstring(info.info_hashes().get_best().to_string())+".torrent";
+        std::string name;
+        BtMy::GetHash16String(info.info_hashes().get_best().to_string(), &name);
+
+        auto filename =std::string{"./torrent/"} + name+".torrent";
 
         
         Print("ok");
@@ -137,8 +157,24 @@ void SaveFileInfo(const lt::torrent_info& info){
         }
 }
 
+
+
+void runwebview(){
+        auto db = std::make_shared<SqlMy::MySqliteConnect>("./data.db");
+        MyWebView::Func(std::make_shared<SqlMy::MyWebViewSelectClass>(db), LR"(C:\Users\PC\cpp\myvue\fileView\dist\torrent)");
+}
+
 void f()
 {
+        auto countdb = std::make_shared<SqlMy::MySqliteConnect>("file:v3Uv0oBM?mode=memory&cache=shared", true);
+
+        auto db = std::make_shared<SqlMy::MySqliteConnect>("./data.db");
+        SqlMy::MyDataInsertClass table{db};
+
+        SqlMy::MyHashCountTable counttable{countdb};
+
+        std::thread t{runwebview};
+        
         lt::settings_pack p;
         p.set_int(lt::settings_pack::alert_mask, lt::alert_category::status | lt::alert_category::dht | lt::alert_category::dht_operation | lt::alert_category::ip_block | lt::alert_category::error);
 
@@ -150,12 +186,16 @@ void f()
 
         lt::session ses{p};
      
-        std::unordered_map<std::string, int> map{};
-
-        
+        //std::unordered_map<std::string, int> map{};
+      
+        libtorrent::time_duration waitmy{std::chrono::seconds{5}};
         //magnet:?xt=urn:btih:ffcd1c04449c405dd5f4d3e427c2c708ad67304a
         for (;;)
         {
+                while (ses.wait_for_alert(waitmy) == nullptr) {
+                        Print("WAIT NULL");
+                }
+
                 std::vector<lt::alert *> alerts;
                 ses.pop_alerts(&alerts);
 
@@ -168,7 +208,7 @@ void f()
                         if (auto v = lt::alert_cast<libtorrent::dht_announce_alert>(a))
                         {
                                
-                                addtorrent(ses, v->info_hash, map);
+                                isaddtorreent(ses, v->info_hash, counttable);
                                
                         }
                       
@@ -176,13 +216,13 @@ void f()
                         {
 
                              
-                                Print("add tr:", getstring(v->params.info_hashes.get(lt::protocol_version::V1).to_string()));
+                                Print("add tr:");
                         }
                        
                         if (auto v = lt::alert_cast<libtorrent::dht_get_peers_alert>(a))
                         {
                               
-                                addtorrent(ses, v->info_hash, map);
+                                isaddtorreent(ses, v->info_hash, counttable);
                                
                         }
 
@@ -221,14 +261,13 @@ void f()
 
                               auto handle = metadata_received->handle;
                                 auto info = handle.torrent_file();
-                                SaveFileInfo(*info);
-                                SaveTorrentFile(*info);
-
+                               auto data = BtMy::GetTorrentData(*info);
+                               table.Insert(data);
                                 ses.remove_torrent(handle);
                         }
                 }
-                std::this_thread::sleep_for(std::chrono::milliseconds(2000));
-                ses.post_torrent_updates();
+                //std::this_thread::sleep_for(std::chrono::milliseconds(2000));
+                //ses.post_torrent_updates();
 
               
 

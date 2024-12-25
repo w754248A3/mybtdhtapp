@@ -5,6 +5,7 @@
 #include <cstddef>
 #include <format>
 #include <functional>
+#include <type_traits>
 #include <wininet.h>
 #ifndef _MYSQLITECLASS
 #define _MYSQLITECLASS
@@ -32,6 +33,7 @@ namespace SqlMy
     CONSTRAINT_UNIQUE = SQLITE_CONSTRAINT_UNIQUE,
     CONSTRAINT = SQLITE_CONSTRAINT,
     DONE= SQLITE_DONE,
+    BUSY= SQLITE_BUSY,
 
   };
 
@@ -64,12 +66,13 @@ namespace SqlMy
       }
     }
 
-    SqlStepCode Step(bool is_errorCode_exit= true)
+    template<typename T>
+    SqlStepCode Step(T&& is_return_code_func) requires (std::is_invocable_r_v<bool, T, SqlStepCode>)
     {
       auto res = (SqlStepCode)sqlite3_step(m_stmt);
       m_up_step_code=(int)res;
 
-      if(is_errorCode_exit ==false && res == SqlStepCode::STEP_ERROR){
+      if(is_return_code_func(res)){
         return res;
       }
 
@@ -93,6 +96,22 @@ namespace SqlMy
       }
 
       return SqlStepCode::OK;
+    }
+
+    
+    SqlStepCode Step(){
+     
+      return Step([](SqlStepCode p) -> bool {return false;});
+    }
+
+     SqlStepCode Step(bool is_errorCode_exit){
+      if(is_errorCode_exit){
+        return Step([](SqlStepCode p) -> bool {return false;});
+      }
+      else{
+        return Step([](SqlStepCode p) -> bool {return p == SqlStepCode::STEP_ERROR;});
+      }
+      
     }
 
     void ClaerBind()
@@ -221,9 +240,13 @@ namespace SqlMy
     sqlite3 *m_db;
 
   public:
-    MySqliteConnect(const std::string &path)
+    MySqliteConnect(const std::string &path, bool is_url_path = false)
     {
       auto flags = SQLITE_OPEN_NOMUTEX |   SQLITE_OPEN_READWRITE| SQLITE_OPEN_CREATE;
+
+      if(is_url_path){
+        flags = flags| SQLITE_OPEN_URI;
+      }
 
       auto res = sqlite3_open_v2(path.c_str(),
                                  &m_db, flags, NULL);
@@ -479,7 +502,7 @@ namespace SqlMy
       m_rollback= std::make_unique<MySqliteStmt>(db->Get(), "ROLLBACK;", true);
     }
     
-    void Begin(){
+    bool Begin(){
       //貌似非bing参数的语句不需要Reset;
 
       //m_begin->Reset();
@@ -487,9 +510,17 @@ namespace SqlMy
       //m_commit->Reset();
 
       //m_rollback->Reset();
+      auto res = m_begin->Step([](auto p)-> bool {return p == SqlStepCode::BUSY;});
 
-      if(m_begin->Step() != SqlStepCode::OK){
+      if(res == SqlStepCode::BUSY){
+        return false;
+      }
+      else if(res == SqlStepCode::OK){
+        return true;
+      }
+      else{
             Exit("start Transaction error");
+            return false;
       }
     }
 
@@ -516,9 +547,9 @@ namespace SqlMy
     bool m_is_commit;
 
     public:
-      MyTransaction(MyTransactionStmt* stmt): m_stmt(stmt){
-         m_stmt->Begin();
-
+      MyTransaction(MyTransactionStmt* stmt, bool* is_ok): m_stmt(stmt){
+        
+         *is_ok= m_stmt->Begin();
          m_is_commit=false;
         
       }
@@ -868,7 +899,7 @@ namespace SqlMy
           )
           SELECT json_group_array(json(json_value_1)) AS json_array
           FROM subquery;
-          )""""); 
+          )"""", true); 
 
 
           m_select_from_new = std::make_unique<MySqliteStmt>(m_db->Get(), R""""(
@@ -893,7 +924,7 @@ namespace SqlMy
           )
           SELECT json_group_array(json(json_value_1)) AS json_array
           FROM subquery;
-          )""""); 
+          )"""", true); 
       }
 
     bool SelectNewLine(int64_t count, int64_t offset, std::string* str){
@@ -958,7 +989,13 @@ namespace SqlMy
     }
 
     bool Insert(const BtMy::Torrent_Data& data){
-        MyTransaction tr{&m_transaction};
+
+        bool is_ok;
+        MyTransaction tr{&m_transaction, &is_ok};
+
+        if(!is_ok){
+          Exit("inset tr not ok");
+        }
 
         auto res = _Insert(data);
 
@@ -968,6 +1005,7 @@ namespace SqlMy
         
 
         return res;
+        
     }
 
     private:

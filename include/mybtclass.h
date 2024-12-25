@@ -14,7 +14,7 @@
 namespace BtMy
 {
 
-    bool GetHash16String(const std::string &s, std::string *out)
+    void GetHash16String(const std::string &s, std::string *out)
     {
         auto index = out->size();
 
@@ -42,7 +42,6 @@ namespace BtMy
 
         std::transform(p, out->end(), p, ::toupper);
 
-        return true;
     }
 
     void GetHashFromInfo(const lt::torrent_info& info, std::string* out){
