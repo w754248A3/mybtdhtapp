@@ -283,6 +283,15 @@ namespace SqlMy
 
     }
 
+    void SetConnectConfig(int v){
+      auto res = sqlite3_db_config(m_db, v);
+
+      if(res != SQLITE_OK){
+        Print(sqlite3_errmsg(m_db));
+        Exit("SetConnectConfig error");
+      }
+    }
+
     ~MySqliteConnect()
     {
 

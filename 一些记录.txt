@@ -1,0 +1,16 @@
+在JOIN表的时候, 虚拟表 使用
+...
+JOIN fulltext_table AS ft
+...
+WHERE ft MATCH ?1
+语法时 fulltext_table 写成别名会出错
+
+
+sqlite 虚拟表扩展
+假如不使用动态库而是使用静态链接的话
+可以不调用sqlite3_load_extension
+直接在连接上注册
+
+但是需要定义一个标志 #define SQLITE_CORE
+否则导入#include "sqlite3ext.h"
+之后很多API会变成宏定义而且需要预先设置一个指针

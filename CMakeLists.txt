@@ -172,3 +172,19 @@ my_set_common_properties(test)
 target_precompile_headers(test REUSE_FROM mydhtrecord)
 
 my_set_target_out(test)
+
+
+
+add_executable(testsqliteex
+./include/mybtclass.h
+./include/mysqliteclass.h
+./include/mytf.h
+./../CppHttpFileServer/include/leikaifeng.h
+./../CppHttpFileServer/include/myio.h
+./testsqliteex.cpp)
+
+my_set_common_properties(testsqliteex)
+
+target_precompile_headers(testsqliteex REUSE_FROM mydhtrecord)
+
+my_set_target_out(testsqliteex)
