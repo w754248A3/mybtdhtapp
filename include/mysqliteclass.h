@@ -198,9 +198,9 @@ namespace SqlMy
       }
     }
 
-    void BindPointer(int index, void *p, const std::string &name)
+    void BindPointer(int index, void *p, const char* pointerTypeStr)
     {
-      auto res = sqlite3_bind_pointer(m_stmt, index, p, name.data(), NULL);
+      auto res = sqlite3_bind_pointer(m_stmt, index, p, pointerTypeStr, NULL);
 
       if (res != SQLITE_OK)
       {

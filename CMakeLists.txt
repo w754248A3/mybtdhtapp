@@ -109,13 +109,14 @@ function(my_set_target_out targetname)
 endfunction()
 
 
-add_executable(mydhtrecord ./mydhtrecord.cpp)
+
+add_executable(build_precompile_headers ./build_precompile_headers.cpp)
 
 
-my_set_common_properties(mydhtrecord)
+my_set_common_properties(build_precompile_headers)
 
 
-target_precompile_headers(mydhtrecord PUBLIC
+target_precompile_headers(build_precompile_headers PUBLIC
     <libtorrent/session.hpp>
     <libtorrent/add_torrent_params.hpp>
     <libtorrent/torrent_handle.hpp>
@@ -133,6 +134,18 @@ target_precompile_headers(mydhtrecord PUBLIC
 
     )
 
+
+my_set_target_out(build_precompile_headers)
+
+
+
+
+add_executable(mydhtrecord ./mydhtrecord.cpp)
+
+
+my_set_common_properties(mydhtrecord)
+
+target_precompile_headers(mydhtrecord REUSE_FROM build_precompile_headers)
 
 my_set_target_out(mydhtrecord)
 
