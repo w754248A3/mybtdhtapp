@@ -3,6 +3,9 @@
 #include <array>
 #include <cstddef>
 #include <cstdio>
+#include <utility>
+#include <vector>
+#include <winnt.h>
 #include "leikaifeng.h"
 #ifndef _MYSQLITEVTABLEEX
 #define _MYSQLITEVTABLEEX
@@ -83,6 +86,8 @@ struct templatevtab_cursor {
   sqlite3_int64 iRowid; /* The rowid */
 
   size_t index;
+
+  std::vector<std::pair<INT64, std::string>>* vs;
 };
 
 
@@ -172,6 +177,7 @@ static int templatevtabClose(sqlite3_vtab_cursor *cur) {
 static int templatevtabNext(sqlite3_vtab_cursor *cur) {
   templatevtab_cursor *pCur = (templatevtab_cursor *)cur;
   pCur->iRowid++;
+  pCur->index++;
   return SQLITE_OK;
 }
 
@@ -186,15 +192,20 @@ static int templatevtabColumn(
 ) {
   Print("need clo", i);
   templatevtab_cursor *pCur = (templatevtab_cursor *)cur;
-  switch (i) {
-  case TEMPLATEVTAB_A:
-    sqlite3_result_int(ctx, 1000 + (int)pCur->iRowid);
-    break;
-  default:
-    assert(i == TEMPLATEVTAB_B);
-    sqlite3_result_int(ctx, 2000 + (int)pCur->iRowid);
-    break;
+
+  auto& v = pCur->vs->at(pCur->index);
+  if(i == 0){
+    sqlite3_result_int64(ctx, v.first);
   }
+  else if(i == 1){
+    
+    sqlite3_result_text(ctx, v.second.data(), (int)v.second.size(), SQLITE_TRANSIENT);
+  }
+  else{
+    sqlite3_result_text(ctx, "Column get not clo", -1, SQLITE_STATIC);
+    return  SQLITE_ERROR;
+  }
+  
   return SQLITE_OK;
 }
 
@@ -214,7 +225,7 @@ static int templatevtabRowid(sqlite3_vtab_cursor *cur, sqlite_int64 *pRowid) {
 */
 static int templatevtabEof(sqlite3_vtab_cursor *cur) {
   templatevtab_cursor *pCur = (templatevtab_cursor *)cur;
-  return pCur->iRowid >= 10;
+  return pCur->index >= pCur->vs->size();
 }
 
 
@@ -245,6 +256,8 @@ static int templatevtabFilter(sqlite3_vtab_cursor *pVtabCursor, int idxNum,
   Print(v);
   templatevtab_cursor *pCur = (templatevtab_cursor *)pVtabCursor;
   pCur->iRowid = 1;
+  pCur->index=0;
+  pCur->vs=(decltype(pCur->vs))v;
 
 
   return SQLITE_OK;
