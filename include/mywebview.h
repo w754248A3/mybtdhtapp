@@ -32,7 +32,7 @@ struct RequestData{
 };
 
 bool ResponseFile(std::shared_ptr<RequestData> data){
-  auto path = UTF8::GetWideChar(data->request->GetPath());
+  auto path = UTF8::GetWideCharFromUTF8(data->request->GetPath());
 
     
     if(path.starts_with(L"/app")){
@@ -70,7 +70,7 @@ void Response(std::shared_ptr<RequestData> data) {
     return;
   }
 
-  auto pagestr = data->request->GetQueryValue(u8"page");
+  auto pagestr = data->request->GetQueryValue(MYTEXT("page"));
   size_t page=0;
   Number::Parse(pagestr, page);
 
@@ -80,14 +80,14 @@ void Response(std::shared_ptr<RequestData> data) {
 
 
 
-  auto key = data->request->GetQueryValue(u8"key");
-  auto selnew = data->request->GetQueryValue(u8"new");
-  if(key != u8"")
+  auto key = data->request->GetQueryValue("key");
+  auto selnew = data->request->GetQueryValue("new");
+  if(key != "")
   {
-      Print(UTF8::GetStdOut(key));
+      Print(UTF8::GetMultiByteFromUTF8(key));
       std::string str{};
-      if(data->table->SelectFromKey(ToString(key),count, offset, &str)){
-          HttpResponseStrContent connect{200, std::move(ToU8String(str)), HttpResponseStrContent::JSON_TYPE};
+      if(data->table->SelectFromKey(key,count, offset, &str)){
+          HttpResponseStrContent connect{200, std::move(str), HttpResponseStrContent::JSON_TYPE};
 
           connect.Send(data->connect);
       }
@@ -96,10 +96,10 @@ void Response(std::shared_ptr<RequestData> data) {
       res404.Send(data->connect);
       }
   }
-  else if(selnew != u8""){
+  else if(selnew != ""){
       std::string str{};
       if(data->table->SelectNewLine(count, offset, &str)){
-          HttpResponseStrContent connect{200, std::move(ToU8String(str)), HttpResponseStrContent::JSON_TYPE};
+          HttpResponseStrContent connect{200, std::move(str), HttpResponseStrContent::JSON_TYPE};
 
           connect.Send(data->connect);
       }
@@ -154,7 +154,7 @@ void Func(std::shared_ptr<SqlMy::MyWebViewSelectClass> table, std::wstring path)
   f->Start(
       [](std::shared_ptr<SqlMy::MyWebViewSelectClass> table, std::wstring path) {
         TcpSocketListen lis{};
-        lis.Bind(IPEndPoint{127, 0, 0, 1, 80});
+        lis.Bind(IPEndPoint{"127.0.0.1", 80});
         lis.Listen(1);
 
         while (true) {

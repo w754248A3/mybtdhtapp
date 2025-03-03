@@ -123,11 +123,12 @@ int main(int argc, char const *argv[])
     }
     auto wpath = UTF8::GetWideChar(argv[1]);
 
-    auto u8 = UTF8::GetUTF8(wpath);
+    auto u8 = UTF8::GetUTF8ToString(wpath);
+    u8.insert(0, "magnet:?xt=urn:btih:");
     try
     {
 
-        f(std::string{reinterpret_cast<char *>(u8.data()), u8.size()});
+        f(u8);
     }
     catch (std::exception &e)
     {
