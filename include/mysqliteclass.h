@@ -5,6 +5,7 @@
 #include <cstddef>
 #include <format>
 #include <functional>
+#include <thread>
 #include <type_traits>
 #include <wininet.h>
 #ifndef _MYSQLITECLASS
@@ -240,13 +241,9 @@ namespace SqlMy
     sqlite3 *m_db;
 
   public:
-    MySqliteConnect(const std::string &path, bool is_url_path = false)
+    MySqliteConnect(const std::string &path)
     {
-      auto flags = SQLITE_OPEN_NOMUTEX |   SQLITE_OPEN_READWRITE| SQLITE_OPEN_CREATE;
-
-      if(is_url_path){
-        flags = flags| SQLITE_OPEN_URI;
-      }
+      auto flags = SQLITE_OPEN_NOMUTEX |   SQLITE_OPEN_READWRITE| SQLITE_OPEN_CREATE| SQLITE_OPEN_URI;
 
       auto res = sqlite3_open_v2(path.c_str(),
                                  &m_db, flags, NULL);
@@ -262,6 +259,20 @@ namespace SqlMy
     sqlite3 *Get()
     {
       return m_db;
+    }
+    void Attach(const std::string& path, const std::string& name){
+      auto command = std::format("ATTACH DATABASE '{0}' AS {1};", path, name);
+    
+      MySqliteStmt stmt{this->Get(), command};
+
+
+      if (stmt.Step() != SqlStepCode::OK){
+         Exit("Attach error");
+      }
+
+
+
+
     }
 
     void RegisterTrace(){
@@ -556,16 +567,28 @@ namespace SqlMy
     bool m_is_commit;
 
     public:
-      MyTransaction(MyTransactionStmt* stmt, bool* is_ok): m_stmt(stmt){
-        
-         *is_ok= m_stmt->Begin();
-         m_is_commit=false;
+      MyTransaction(MyTransactionStmt* stmt, bool* is_ok): m_stmt(stmt), m_is_commit(false){
+        Print("Begin start");
+        for (int n =0; n<1000; n++) {
+          if(m_stmt->Begin()){
+            *is_ok=true;
+            m_is_commit=false;
+            return;
+          }
+          else{
+            std::this_thread::yield();
+          }
+        }
+
+
+        *is_ok=false; 
         
       }
 
     
 
     void Commit(){
+      Print("Commit start");
       m_stmt->Commit();
       m_is_commit=true;
     }
@@ -587,7 +610,7 @@ namespace SqlMy
 
     std::shared_ptr<MySqliteConnect> m_db;
     std::unique_ptr<MySqliteStmt> m_inset;
-   
+  
     public:
       MyHashCountTable(std::shared_ptr<MySqliteConnect> db): m_db(db){
 
@@ -612,6 +635,7 @@ namespace SqlMy
       }
 
      bool Insert(const std::string& s, int64_t* pcount){
+       
           m_inset->Reset();
           m_inset->BindText(1, s);
         
@@ -861,6 +885,7 @@ namespace SqlMy
     std::shared_ptr<MySqliteConnect> m_db;
     std::unique_ptr<MySqliteStmt> m_select_from_key;
     std::unique_ptr<MySqliteStmt> m_select_from_new;
+  
     public:
       MyWebViewSelectClass(std::shared_ptr<MySqliteConnect> db): m_db(db){
 
@@ -937,6 +962,8 @@ namespace SqlMy
       }
 
     bool SelectNewLine(int64_t count, int64_t offset, std::string* str){
+
+
           auto& stmt = *m_select_from_new;
 
           stmt.Reset();
@@ -955,7 +982,7 @@ namespace SqlMy
     }
       
     bool SelectFromKey(const std::string& key, int64_t count, int64_t offset, std::string* str){
-          
+         
           auto& stmt = *m_select_from_key;
 
           stmt.Reset();
