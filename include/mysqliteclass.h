@@ -68,7 +68,7 @@ namespace SqlMy
     }
 
     template<typename T>
-    SqlStepCode Step(T&& is_return_code_func) requires (std::is_invocable_r_v<bool, T, SqlStepCode>)
+    SqlStepCode Step(const std::string& meg, T&& is_return_code_func) requires (std::is_invocable_r_v<bool, T, SqlStepCode>)
     {
       auto res = (SqlStepCode)sqlite3_step(m_stmt);
       m_up_step_code=(int)res;
@@ -92,7 +92,7 @@ namespace SqlMy
         }
         auto excode = sqlite3_extended_errcode(m_db);
        
-        Print("code", (int)res, "excode:", excode, "error meg", sqlite3_errmsg(m_db));
+        Print("code", (int)res, "excode:", excode, "error meg", sqlite3_errmsg(m_db), "call meg", meg);
         Exit("step stm error");
       }
 
@@ -100,17 +100,17 @@ namespace SqlMy
     }
 
     
-    SqlStepCode Step(){
+    SqlStepCode Step(const std::string& meg){
      
-      return Step([](SqlStepCode p) -> bool {return false;});
+      return Step(meg, [](SqlStepCode p) -> bool {return false;});
     }
 
-     SqlStepCode Step(bool is_errorCode_exit){
+     SqlStepCode Step(const std::string& meg, bool is_errorCode_exit){
       if(is_errorCode_exit){
-        return Step([](SqlStepCode p) -> bool {return false;});
+        return Step(meg, [](SqlStepCode p) -> bool {return false;});
       }
       else{
-        return Step([](SqlStepCode p) -> bool {return p == SqlStepCode::STEP_ERROR;});
+        return Step(meg,[](SqlStepCode p) -> bool {return p == SqlStepCode::STEP_ERROR;});
       }
       
     }
@@ -216,7 +216,7 @@ namespace SqlMy
       fts5_api *p;
       stmt.BindPointer(1, &p, "fts5_api_ptr");
 
-      stmt.Step();
+      stmt.Step("GetFts5ApiP");
 
       if (p == NULL)
       {
@@ -266,7 +266,7 @@ namespace SqlMy
       MySqliteStmt stmt{this->Get(), command};
 
 
-      if (stmt.Step() != SqlStepCode::OK){
+      if (stmt.Step("Attach error") != SqlStepCode::OK){
          Exit("Attach error");
       }
 
@@ -496,7 +496,7 @@ namespace SqlMy
   void CreateTable(std::shared_ptr<MySqliteConnect> db, const std::string& sql){
     MySqliteStmt stmt{db->Get(), sql};
    
-    if(stmt.Step()!= SqlStepCode::OK){
+    if(stmt.Step("CreateTable")!= SqlStepCode::OK){
       Exit("create table error");
     }
 
@@ -530,7 +530,7 @@ namespace SqlMy
       //m_commit->Reset();
 
       //m_rollback->Reset();
-      auto res = m_begin->Step([](auto p)-> bool {return p == SqlStepCode::BUSY;});
+      auto res = m_begin->Step("Begin", [](auto p)-> bool {return p == SqlStepCode::BUSY;});
 
       if(res == SqlStepCode::BUSY){
         return false;
@@ -545,14 +545,14 @@ namespace SqlMy
     }
 
     void Commit(){
-        if(m_commit->Step() != SqlStepCode::OK){
+        if(m_commit->Step("Commit") != SqlStepCode::OK){
             Exit("commit Transaction error");
         }
     }
 
 
     void Rollback(){
-      if(m_rollback->Step() != SqlStepCode::OK){
+      if(m_rollback->Step("Rollback") != SqlStepCode::OK){
           Exit("rollback Transaction error");
         }
     }
@@ -623,13 +623,13 @@ namespace SqlMy
           m_inset->Reset();
           m_inset->BindText(1, s);
         
-          auto res = m_inset->Step();
+          auto res = m_inset->Step("hash count Insert 1");
        
           if(res == SqlStepCode::ROW){
             
             *pcount = m_inset->GetInt64(0);
           
-            return m_inset->Step() == SqlStepCode::OK;
+            return m_inset->Step("hash count Insert 2") == SqlStepCode::OK;
           }
           else{
             return false;
@@ -678,7 +678,7 @@ namespace SqlMy
 
           m_is_have_hash->BindText(1, s);
 
-          auto res = m_is_have_hash->Step();
+          auto res = m_is_have_hash->Step("IsHaveHash");
 
           if(res == SqlStepCode::ROW){
             return true;
@@ -699,13 +699,13 @@ namespace SqlMy
           m_inset->Reset();
           m_inset->BindText(1, s);
         
-          auto res = m_inset->Step();
+          auto res = m_inset->Step("hash Insert 1");
        
           if(res == SqlStepCode::ROW){
             
             *pid = m_inset->GetInt64(0);
           
-            return m_inset->Step() == SqlStepCode::OK;
+            return m_inset->Step("hash Insert 1") == SqlStepCode::OK;
           }
           else{
             return false;
@@ -753,7 +753,7 @@ namespace SqlMy
           m_inset->BindInt64(1, id);
           m_inset->BindText(2, s);
         
-          auto res = m_inset->Step();
+          auto res = m_inset->Step("full text Insert");
           bool isok= res == SqlStepCode::OK;
          
          
@@ -771,7 +771,7 @@ namespace SqlMy
           )""""};
         stmt.BindText(1, s);
        
-        while (stmt.Step() == SqlStepCode::ROW) {
+        while (stmt.Step("sou") == SqlStepCode::ROW) {
           auto id = stmt.GetInt64(0);
           auto text = stmt.GetText(1);
 
@@ -808,7 +808,7 @@ namespace SqlMy
                     CREATE INDEX IF NOT EXISTS count_index_name ON file_table (hash_id);
               )""""};
 
-              if(stmt.Step() != SqlStepCode::OK){
+              if(stmt.Step("create index on file_table error") != SqlStepCode::OK){
                 Exit("create index on file_table error");
               }
           }
@@ -831,7 +831,7 @@ namespace SqlMy
           )""""};
 
 
-          while (stmt.Step()== SqlStepCode::ROW) {
+          while (stmt.Step("SelectNewLine while")== SqlStepCode::ROW) {
             auto id = stmt.GetInt64(0);
             auto hash_id = stmt.GetInt64(1);
             auto name = stmt.GetText(2);
@@ -848,13 +848,13 @@ namespace SqlMy
           m_inset->BindText(2,name);
           m_inset->BindInt64(3,size);
         
-          auto res = m_inset->Step();
+          auto res = m_inset->Step("torrent insert 1");
        
           if(res == SqlStepCode::ROW){
             
             *pid = m_inset->GetInt64(0);
           
-            return m_inset->Step() == SqlStepCode::OK;
+            return m_inset->Step("torrent insert 2") == SqlStepCode::OK;
           }
           else{
             return false;
@@ -955,10 +955,10 @@ namespace SqlMy
           stmt.BindInt64(1, count);
           stmt.BindInt64(2, offset);
 
-          if(stmt.Step(false)== SqlStepCode::ROW){
+          if(stmt.Step("web view SelectNewLine 1", false)== SqlStepCode::ROW){
             *str = std::move(stmt.GetText(0));
 
-            return stmt.Step()== SqlStepCode::OK;
+            return stmt.Step("web view SelectNewLine 2")== SqlStepCode::OK;
           }
           else{
             return false;
@@ -976,10 +976,10 @@ namespace SqlMy
           stmt.BindInt64(2, count);
           stmt.BindInt64(3, offset);
 
-          if(stmt.Step(false)== SqlStepCode::ROW){
+          if(stmt.Step("web view SelectFromKey 1", false)== SqlStepCode::ROW){
             *str = std::move(stmt.GetText(0));
 
-            return stmt.Step()== SqlStepCode::OK;
+            return stmt.Step("web view SelectFromKey 2")== SqlStepCode::OK;
           }
           else{
             return false;
