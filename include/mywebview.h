@@ -82,6 +82,7 @@ void Response(std::shared_ptr<RequestData> data) {
 
   auto key = data->request->GetQueryValue("key");
   auto selnew = data->request->GetQueryValue("new");
+  auto selhot = data->request->GetQueryValue("hot");
   if(key != "")
   {
       Print(UTF8::GetMultiByteFromUTF8(key));
@@ -99,6 +100,18 @@ void Response(std::shared_ptr<RequestData> data) {
   else if(selnew != ""){
       std::string str{};
       if(data->table->SelectNewLine(count, offset, &str)){
+          HttpResponseStrContent connect{200, std::move(str), HttpResponseStrContent::JSON_TYPE};
+
+          connect.Send(data->connect);
+      }
+      else{
+          HttpResponse404 res404{};
+      res404.Send(data->connect);
+      }
+  }
+  else if(selhot != ""){
+    std::string str{};
+      if(data->table->SelectHotLine(count, offset, &str)){
           HttpResponseStrContent connect{200, std::move(str), HttpResponseStrContent::JSON_TYPE};
 
           connect.Send(data->connect);

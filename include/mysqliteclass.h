@@ -275,6 +275,16 @@ namespace SqlMy
 
     }
 
+    void SetBusyTimeout(int milliseconds){
+      
+        auto res = sqlite3_busy_timeout(m_db, milliseconds);
+
+        if(res != SQLITE_OK){
+          Print(res, sqlite3_errmsg(m_db));
+          Exit("SetBusyTimeout error");
+        }
+    }
+
     void RegisterTrace(){
      
 
@@ -600,7 +610,7 @@ namespace SqlMy
 
          SqlMy::CreateTable(db,
           R""""(
-            CREATE TABLE IF NOT EXISTS hash_count_table (
+            CREATE TABLE IF NOT EXISTS mymdb567.hash_count_table (
             id INTEGER PRIMARY KEY,
             hash_value TEXT NOT NULL,   
             count INTEGER NOT NULL DEFAULT 1,    
@@ -610,7 +620,7 @@ namespace SqlMy
 
       
          m_inset = std::make_unique<MySqliteStmt>(db->Get(), R""""(
-            INSERT INTO hash_count_table (hash_value) VALUES (?1)
+            INSERT INTO mymdb567.hash_count_table (hash_value) VALUES (?1)
             ON CONFLICT(hash_value) DO UPDATE SET count=count+1
             RETURNING count;
           )"""", true);
@@ -869,6 +879,7 @@ namespace SqlMy
     std::shared_ptr<MySqliteConnect> m_db;
     std::unique_ptr<MySqliteStmt> m_select_from_key;
     std::unique_ptr<MySqliteStmt> m_select_from_new;
+    std::unique_ptr<MySqliteStmt> m_select_from_hot;
   
     public:
       MyWebViewSelectClass(std::shared_ptr<MySqliteConnect> db): m_db(db){
@@ -943,7 +954,57 @@ namespace SqlMy
           SELECT json_group_array(json(json_value_1)) AS json_array
           FROM subquery;
           )"""", true); 
+
+
+          m_select_from_hot = std::make_unique<MySqliteStmt>(m_db->Get(), R""""(
+            WITH 
+            hot_subquery AS (
+              SELECT ht.id, ht.hash_value, hct.count
+              FROM mymdb567.hash_count_table AS hct
+              JOIN hash_table AS ht
+                ON ht.hash_value = hct.hash_value
+            ),
+            subquery AS (
+              SELECT 
+                json_object(
+                  'hash_value', ht.hash_value,
+                  'count', ht.count,
+                  'files',  json_group_array(
+                        json_object(
+                            'name', f.name,
+                            'size', f.size
+                        )
+                    ) 
+                ) AS json_value_1
+              FROM hot_subquery AS ht
+              JOIN file_table AS f
+                  ON ht.id = f.hash_id
+              GROUP BY ht.hash_value
+              ORDER BY ht.count DESC
+              LIMIT ?1 OFFSET ?2
+          )
+          SELECT json_group_array(json(json_value_1)) AS json_array
+          FROM subquery;
+          )"""", true); 
       }
+
+    bool SelectHotLine(int64_t count, int64_t offset, std::string* str){
+          auto& stmt = *m_select_from_hot;
+
+          stmt.Reset();
+
+          stmt.BindInt64(1, count);
+          stmt.BindInt64(2, offset);
+
+          if(stmt.Step("web view SelectHotLine 1", false)== SqlStepCode::ROW){
+            *str = std::move(stmt.GetText(0));
+
+            return stmt.Step("web view SelectHotLine 2")== SqlStepCode::OK;
+          }
+          else{
+            return false;
+          }
+    }
 
     bool SelectNewLine(int64_t count, int64_t offset, std::string* str){
 

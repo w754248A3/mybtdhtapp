@@ -1,5 +1,7 @@
 #include <boost/date_time/posix_time/posix_time_duration.hpp>
+#include <corecrt_startup.h>
 #include <thread>
+#include <unordered_map>
 #ifndef _WIN32_WINNT
 #define _WIN32_WINNT _WIN32_WINNT_WIN8
 #endif
@@ -16,6 +18,7 @@
 #include <libtorrent/bdecode.hpp>
 #include <libtorrent/bencode.hpp>
 #include <libtorrent/create_torrent.hpp>
+#include <libtorrent/session_stats.hpp>
 #include <iostream>
 #include <fstream>
 #include <format>
@@ -158,20 +161,66 @@ void SaveFileInfo(const lt::torrent_info& info){
 }
 
 
+auto createconnect(){
+        auto db = std::make_shared<SqlMy::MySqliteConnect>("./data.db");
+        db->SetBusyTimeout(5000);
+        
+        {
+                const std::string sql{"file:v3Uv0oBM?mode=memory&cache=shared"};
+                //SqlMy::MySqliteConnect mdb{sql};
+
+                db->Attach(sql,"mymdb567");
+        }
+        return db;
+}
+
 
 void runwebview(){
-        auto db = std::make_shared<SqlMy::MySqliteConnect>("./data.db");
+        auto db = createconnect();
         MyWebView::Func(std::make_shared<SqlMy::MyWebViewSelectClass>(db), LR"(C:\Users\PC\cpp\myvue\fileView\dist\torrent)");
 }
 
+std::unordered_map<std::string, int> findNeed(){
+
+
+        std::unordered_map<std::string, int> map{
+        };
+
+        auto list = {
+                "ses.num_checking_torrents",
+                "ses.num_stopped_torrents",
+                "ses.num_upload_only_torrents",
+                "ses.num_downloading_torrents",
+                "ses.num_seeding_torrents",
+                "ses.num_queued_seeding_torrents",
+                "ses.num_queued_download_torrents",
+                "ses.num_error_torrents"
+                };
+        
+        for (const auto& item : list) {
+               auto index = lt::find_metric_idx(item);
+               if(index == -1){
+                        Print(item, "not find");
+                        Exit("findNeed error");
+               }
+
+                map.emplace(std::string{item}, index);
+        }
+
+        return map;
+}
+
+
+
 void f()
 {
-        auto countdb = std::make_shared<SqlMy::MySqliteConnect>("file:v3Uv0oBM?mode=memory&cache=shared", true);
+        const auto statucmap = findNeed();
 
-        auto db = std::make_shared<SqlMy::MySqliteConnect>("./data.db");
+        auto db = createconnect();
+        
         SqlMy::MyDataInsertClass table{db};
 
-        SqlMy::MyHashCountTable counttable{countdb};
+        SqlMy::MyHashCountTable counttable{db};
 
         std::thread t{runwebview};
         
@@ -183,7 +232,8 @@ void f()
 
         p.set_str(lt::settings_pack::string_types::dht_bootstrap_nodes,
                   "192.168.0.110:6881");
-
+        p.set_int(lt::settings_pack::int_types::active_downloads, 100);
+        p.set_int(lt::settings_pack::int_types::active_seeds, 100);
         lt::session ses{p};
      
         //std::unordered_map<std::string, int> map{};
@@ -198,7 +248,7 @@ void f()
 
                 std::vector<lt::alert *> alerts;
                 ses.pop_alerts(&alerts);
-
+                
                 for (lt::alert *a : alerts)
                 {
                         // std::cout << UTF8::GetMultiByteFromUTF8(a->message()) << std::endl;
@@ -209,6 +259,7 @@ void f()
                         {
                                
                                 isaddtorreent(ses, v->info_hash, counttable);
+                                //ses.post_session_stats();
                                
                         }
                       
@@ -223,6 +274,7 @@ void f()
                         {
                               
                                 isaddtorreent(ses, v->info_hash, counttable);
+                                //ses.post_session_stats();
                                
                         }
 
@@ -231,7 +283,7 @@ void f()
 
                                 for (auto &statu : statealert->status)
                                 {
-                                        Print("tr name:", UTF8::GetMultiByteFromUTF8(statu.name));
+                                        Print("state_update_ name:", UTF8::GetMultiByteFromUTF8(statu.name));
                                 }
                         }
 
@@ -263,8 +315,18 @@ void f()
                                 auto info = handle.torrent_file();
                                auto data = BtMy::GetTorrentData(*info);
                                table.Insert(data);
-                                ses.remove_torrent(handle);
+                                //ses.remove_torrent(handle);
                         }
+
+                        if (auto session_stats =lt::alert_cast<lt::session_stats_alert>(a))
+                        {       auto sp = session_stats->counters();
+                              for (const auto& item : statucmap) {
+                              
+                                Print(item.first, sp[item.second]);
+                              }
+                        }
+
+                        
                 }
                 //std::this_thread::sleep_for(std::chrono::milliseconds(2000));
                 //ses.post_torrent_updates();
