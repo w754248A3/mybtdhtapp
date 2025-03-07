@@ -521,7 +521,7 @@ namespace SqlMy
 
       m_rollback= std::make_unique<MySqliteStmt>(db->Get(), "ROLLBACK;", true);
     }
-    
+   
     bool Begin(){
       //貌似非bing参数的语句不需要Reset;
 
@@ -557,55 +557,39 @@ namespace SqlMy
         }
     }
 
-
-
-  };
-
-
-  class MyTransaction{
-    MyTransactionStmt* m_stmt;
-    bool m_is_commit;
-
-    public:
-      MyTransaction(MyTransactionStmt* stmt, bool* is_ok): m_stmt(stmt), m_is_commit(false){
-        Print("Begin start");
+    bool BeginLoop(){
+      
         for (int n =0; n<1000; n++) {
-          if(m_stmt->Begin()){
-            *is_ok=true;
-            m_is_commit=false;
-            return;
+          if(this->Begin()){
+            
+            return true;
           }
           else{
             std::this_thread::yield();
           }
         }
 
-
-        *is_ok=false; 
-        
-      }
-
-    
-
-    void Commit(){
-      Print("Commit start");
-      m_stmt->Commit();
-      m_is_commit=true;
+        return false;
     }
-
-    ~MyTransaction(){
-      if(m_is_commit){
-        return;
-      }
-      else{
-        m_stmt->Rollback();
-      }
+    
+    bool RunOnTransaction(std::function<bool()> func){
+        if(!this->BeginLoop()){
+          Exit("can not start Begin");
+        }
+      
+        if(func()){
+          this->Commit();
+          return true;
+        }
+        else{
+          this->Rollback();
+          return false;
+        }
 
     }
 
   };
 
-  
   class MyHashCountTable{
 
     std::shared_ptr<MySqliteConnect> m_db;
@@ -1026,21 +1010,12 @@ namespace SqlMy
 
     bool Insert(const BtMy::Torrent_Data& data){
 
-        bool is_ok;
-        MyTransaction tr{&m_transaction, &is_ok};
 
-        if(!is_ok){
-          Exit("inset tr not ok");
-        }
+        return m_transaction.RunOnTransaction([&v = data, obj= this]()-> bool{
+          
+          return obj->_Insert(v);
+        });
 
-        auto res = _Insert(data);
-
-        if(res){
-          tr.Commit();
-        }
-        
-
-        return res;
         
     }
 
