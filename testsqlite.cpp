@@ -9,7 +9,7 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
-
+#include "mywebview.h"
 
 
 std::vector<BtMy::Torrent_Data> GetInfoFileNames(){
@@ -201,7 +201,7 @@ void TestFullTextTable(){
 
   
 }
-#endif
+
 
 
 void TestFileTable(){
@@ -211,7 +211,7 @@ void TestFileTable(){
 
   auto db = std::make_shared<SqlMy::MySqliteConnect>(":strmasgg56hfgfg:");
  
-  SqlMy::MyTorrentDataTable table{db};
+  SqlMy::MyDataInsertClass table{db};
 
 
   {
@@ -235,18 +235,154 @@ void TestFileTable(){
     Print("input", input);
 
     auto u8 = UTF8::GetUTF8ToString(UTF8::GetWideChar(input));
-    table.SelectFromKey(u8, [](auto& json){
-    Print(UTF8::GetMultiByteFromUTF8(json));
-    });
+    
 
   }
 
 }
 
+void TestLoop(){
+  
+
+  auto db = std::make_shared<SqlMy::MySqliteConnect>("strmasgg56hfgfg");
+ 
+  SqlMy::MyHashCountTable table{db};
+
+  std::vector<std::string> vs{"0","1","2","2","2", "3", "4", "0", "1", "2"};
+  SqlMy::MyTransactionStmt trstmt{db};
+
+  for (const auto& item : vs) {
+    {
+      SqlMy::MyTransaction tr{&trstmt};
+      int64_t n;
+      Print("item", item);
+      if(table.Insert(item, &n)){
+        Print(n);
+      }
+
+      tr.Commit();
+    }
+    
+  }
+
+}
+
+
+
+#endif
+
+
+void TestWebView(){
+  auto datas = GetInfoFileNames();
+
+  constexpr auto PATHNAME = "file:strmasgg56hfgfg?mode=memory&cache=shared";
+
+  auto db = std::make_shared<SqlMy::MySqliteConnect>(PATHNAME);
+ 
+  SqlMy::MyDataInsertClass table{db};
+
+
+  {
+    
+   
+    for (const auto& item : datas) {
+      
+      if(table.IsHaveHash(item.hash)==false){
+        table.Insert(item);
+      }
+
+      
+
+    }
+  }
+  Print("ok");
+
+  //auto db2 = std::make_shared<SqlMy::MySqliteConnect>(PATHNAME);
+ 
+  MyWebView::Func(std::make_shared<SqlMy::MyWebViewSelectClass>(db), LR"(C:\Users\PC\cpp\myvue\fileView\dist\torrent)");
+}
+
+
+
+void TestInputSql(){
+  auto datas = GetInfoFileNames();
+
+  constexpr auto PATHNAME = "file:strmasgg56hfgfg?mode=memory&cache=shared";
+
+  auto db = std::make_shared<SqlMy::MySqliteConnect>(PATHNAME);
+ 
+  SqlMy::MyDataInsertClass table{db};
+
+
+  {
+    
+   
+    for (const auto& item : datas) {
+      
+      if(table.IsHaveHash(item.hash)==false){
+        table.Insert(item);
+      }
+
+      
+
+    }
+  }
+  Print("ok");
+
+  while (true) {
+    std::string input;
+
+    std::getline(std::cin, input);
+    Print("input", input);
+
+    auto u8 = UTF8::GetUTF8ToString(UTF8::GetWideChar(input));
+    
+    SqlMy::MySqliteStmt stmt{db->Get(), R""""(
+      WITH textquery AS (
+        SELECT rowid, rank  FROM fulltext_table
+        WHERE fulltext_table MATCH ?1  
+      ),
+      filegroupquery AS (
+        SELECT ft.hash_id, count(ft.hash_id) AS count, min(tq.rank) AS rank FROM file_table AS ft
+        JOIN textquery AS tq
+        ON tq.rowid = ft.id   
+        GROUP BY ft.hash_id 
+      )
+      SELECT 
+        fg.hash_id, fg.count, fg.rank
+      FROM filegroupquery AS fg
+      ORDER BY fg.hash_id
+      LIMIT 60
+    )""""}; 
+
+    stmt.BindText(1, u8);
+
+    while(stmt.Step() == SqlMy::SqlStepCode::ROW){
+      auto id = stmt.GetText(0);
+      auto count = stmt.GetText(1);
+      auto rank = stmt.GetText(2);
+
+      Print(id, count,  rank);
+    }
+
+    Print("over");
+  }
+
+  
+}
+
+
+
+
+
 
 int main(){
- TestFileTable();
+  // auto db2 = std::make_shared<SqlMy::MySqliteConnect>("./strmasgg56hfgfg.db");
+ 
+  // MyWebView::Func(std::make_shared<SqlMy::MyWebViewSelectClass>(db2));
 
+  TestWebView();
+ 
 }
 
 
