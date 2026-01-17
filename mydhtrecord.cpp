@@ -1,5 +1,7 @@
 #include <boost/date_time/posix_time/posix_time_duration.hpp>
 #include <corecrt_startup.h>
+#include <libtorrent/settings_pack.hpp>
+#include <string>
 #include <thread>
 #include <unordered_map>
 #ifndef _WIN32_WINNT
@@ -26,6 +28,35 @@
 #include "mysqliteclass.h"
 #include "mybtclass.h"
 #include "mywebview.h"
+
+
+
+namespace fs = std::filesystem;
+
+// 获取当前可执行文件的完整路径
+fs::path GetExecutablePath() {
+    wchar_t buffer[MAX_PATH];
+    // GetModuleFileNameW 是 Windows API，用于获取当前进程 exe 的路径
+    // 使用宽字符版本 (W后缀)
+    DWORD length = GetModuleFileNameW(NULL, buffer, MAX_PATH);
+    if (length == 0 || length == MAX_PATH) {
+        throw std::runtime_error("无法获取可执行文件路径");
+    }
+    return fs::path(buffer);
+}
+
+
+auto GetAppendExecutablePath(const std::wstring& p){
+
+        auto path =  GetExecutablePath();
+        auto addpath = path.parent_path();
+
+        addpath.append(p);
+        Print("GetExecutablePath:", UTF8::GetMultiByte(path), "add:", UTF8::GetMultiByte(addpath));
+        return  addpath.wstring();
+}
+
+
 boost::asio::ip::address createaddress(const char *str)
 {
 
@@ -39,11 +70,11 @@ void settorrent(lt::add_torrent_params &p)
 {
         p.flags = lt::torrent_flags::upload_mode;
 
-        boost::asio::ip::address ip = createaddress("192.168.0.110");
+        //boost::asio::ip::address ip = createaddress("192.168.0.110");
 
-        p.peers.push_back(libtorrent::tcp::endpoint{ip, 6881});
-
-        p.save_path = "D:/mybtdownload/"; // save in current dir
+        //p.peers.push_back(libtorrent::tcp::endpoint{ip, 6881});
+        
+        p.save_path = "./mybtdownload/"; // save in current dir
 }
 
 void isaddtorreent(lt::session &ses, lt::sha1_hash &hash, SqlMy::MyHashCountTable& counttable){
@@ -177,7 +208,8 @@ auto createconnect(){
 
 void runwebview(){
         auto db = createconnect();
-        MyWebView::Func(std::make_shared<SqlMy::MyWebViewSelectClass>(db), LR"(C:\Users\PC\cpp\myvue\fileView\dist\torrent)");
+        auto path = GetAppendExecutablePath(L"webpage");
+        MyWebView::Func(std::make_shared<SqlMy::MyWebViewSelectClass>(db), path);
 }
 
 std::unordered_map<std::string, int> findNeed(){
@@ -212,7 +244,7 @@ std::unordered_map<std::string, int> findNeed(){
 
 
 
-void f()
+void f(const std::string& u8peer)
 {
         const auto statucmap = findNeed();
 
@@ -231,9 +263,10 @@ void f()
                   "router.bittorrent.com:6881,router.utorrent.com:6881,router.bitcomet.com:6881,dht.transmissionbt.com:6881");
 
         p.set_str(lt::settings_pack::string_types::dht_bootstrap_nodes,
-                  "192.168.0.110:6881");
+                  u8peer);
         p.set_int(lt::settings_pack::int_types::active_downloads, 100);
         p.set_int(lt::settings_pack::int_types::active_seeds, 100);
+        p.set_str(lt::settings_pack::listen_interfaces, "0.0.0.0:0,[::]:0");
         lt::session ses{p};
      
         //std::unordered_map<std::string, int> map{};
@@ -338,10 +371,20 @@ void f()
 int main(int argc, char const *argv[])
 {
         
+
+
+
         try
         {
 
-                f();
+                if(argc != 2){
+                        Print("need args peer");
+                        return 0;
+                }
+                Print(argv[1]);
+                auto u8peer = UTF8::GetUTF8ToString(UTF8::GetWideCharFromMultiByte(argv[1]));
+                   
+                f(u8peer);
         }
         catch (std::exception &e)
         {

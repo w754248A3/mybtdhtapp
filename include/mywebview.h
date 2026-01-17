@@ -1,5 +1,5 @@
 #pragma once
-#include <algorithm>
+#include "leikaifeng.h"
 #include <cstddef>
 #include <cstdint>
 #include <memory>
@@ -39,18 +39,15 @@ bool ResponseFile(std::shared_ptr<RequestData> data){
         path = data->path +path.substr(4);
 
         if(File::IsFileOrFolder(path).IsFile()){
-            
-        HttpResponseFileContent response{ path };
-            
-            response.SetRangeFromRequest(*data->request);
+          
+          ResponseFunc::SendFile(path, data->connect,*(data->request.get()), false);
 
-            response.Send(data->connect);
 
         }
         else{
 
-            HttpResponse404 res404{};
-            res404.Send(data->connect);
+
+          ResponseFunc::Send404(data->connect);
 
         }
 
@@ -88,42 +85,35 @@ void Response(std::shared_ptr<RequestData> data) {
       Print(UTF8::GetMultiByteFromUTF8(key));
       std::string str{};
       if(data->table->SelectFromKey(key,count, offset, &str)){
-          HttpResponseStrContent connect{200, std::move(str), HttpResponseStrContent::JSON_TYPE};
 
-          connect.Send(data->connect);
+        ResponseFunc::SendJsonContent(str, data->connect);
+         
       }
       else{
-          HttpResponse404 res404{};
-      res404.Send(data->connect);
+          ResponseFunc::Send404(data->connect);
       }
   }
   else if(selnew != ""){
       std::string str{};
       if(data->table->SelectNewLine(count, offset, &str)){
-          HttpResponseStrContent connect{200, std::move(str), HttpResponseStrContent::JSON_TYPE};
-
-          connect.Send(data->connect);
+          ResponseFunc::SendJsonContent(str, data->connect);
+         
       }
       else{
-          HttpResponse404 res404{};
-      res404.Send(data->connect);
+          ResponseFunc::Send404(data->connect);
       }
   }
   else if(selhot != ""){
     std::string str{};
       if(data->table->SelectHotLine(count, offset, &str)){
-          HttpResponseStrContent connect{200, std::move(str), HttpResponseStrContent::JSON_TYPE};
-
-          connect.Send(data->connect);
+          ResponseFunc::SendJsonContent(str, data->connect);
       }
       else{
-          HttpResponse404 res404{};
-      res404.Send(data->connect);
+          ResponseFunc::Send404(data->connect);
       }
   }
   else{
-    HttpResponse404 res404{};
-    res404.Send(data->connect);
+    ResponseFunc::Send404(data->connect);
 
     return;
   }
@@ -167,9 +157,9 @@ void Func(std::shared_ptr<SqlMy::MyWebViewSelectClass> table, std::wstring path)
   f->Start(
       [](std::shared_ptr<SqlMy::MyWebViewSelectClass> table, std::wstring path) {
         TcpSocketListen lis{};
-        lis.Bind(IPEndPoint{"127.0.0.1", 80});
+        lis.Bind(IPEndPoint{"0.0.0.0", 8066});
         lis.Listen(1);
-
+        Print(("ip:port===0.0.0.0:8066"));
         while (true) {
           auto data = std::make_shared<RequestData>();
 
