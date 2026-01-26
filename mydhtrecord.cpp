@@ -2,6 +2,7 @@
 #include <corecrt_startup.h>
 #include <cstdio>
 #include <libtorrent/settings_pack.hpp>
+#include <libtorrent/torrent_status.hpp>
 #include <string>
 #include <thread>
 #include <unordered_map>
@@ -240,9 +241,19 @@ void f(const std::string& u8peer)
 
         p.set_str(lt::settings_pack::string_types::dht_bootstrap_nodes,
                   u8peer);
-        p.set_int(lt::settings_pack::int_types::active_downloads, 4000);
-        p.set_int(lt::settings_pack::int_types::active_seeds, 2000); // Reserve slots for seeding
-        p.set_int(lt::settings_pack::int_types::active_limit, 8000);
+
+
+        int allcount = 1000000;
+
+        int active_downloads = allcount/10*8;
+
+        int active_seeds = allcount/10*2;
+
+        MyWin32Out::Print(L"active_downloads", active_downloads, L"active_seeds", active_seeds);
+        
+        p.set_int(lt::settings_pack::int_types::active_downloads, active_downloads);
+        p.set_int(lt::settings_pack::int_types::active_seeds, active_seeds); // Reserve slots for seeding
+        p.set_int(lt::settings_pack::int_types::active_limit, allcount);
         p.set_str(lt::settings_pack::listen_interfaces, "0.0.0.0:0,[::]:0");
         lt::session ses{p};
      
@@ -277,7 +288,7 @@ void f(const std::string& u8peer)
                         {
 
                              
-                                MyWin32Out::Print(L"add tr:");
+                                //MyWin32Out::Print(L"add tr:");
                         }
                        
                         if (auto v = lt::alert_cast<libtorrent::dht_get_peers_alert>(a))
@@ -293,9 +304,16 @@ void f(const std::string& u8peer)
 
                                 for (auto &statu : statealert->status)
                                 {
-                                        MyWin32Out::Print(L"state_update_ name:", UTF8::GetWideCharFromUTF8(statu.name));
+                                        MyWin32Out::Print(L"state_update_ name:", UTF8::GetWideCharFromUTF8(statu.name), 
+                                        L"queue_position",   statu.queue_position,
+                                        L"added_time", statu.added_time,
+                                        L"completed_time", statu.completed_time,
+                                        
+                                        L"is seeding", statu.state & decltype(statu.state)::seeding
+                                        );
                                 }
                         }
+
 
                         if (auto immutable_item = lt::alert_cast<lt::dht_immutable_item_alert>(a))
                         {
@@ -321,7 +339,10 @@ void f(const std::string& u8peer)
                         {
                               MyWin32Out::Print(L"metadata_received run");
 
+                            
                               auto handle = metadata_received->handle;
+
+                              handle.post_status();
                                 auto info = handle.torrent_file();
                                auto data = BtMy::GetTorrentData(*info);
                                table.Insert(data);
