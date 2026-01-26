@@ -28,7 +28,8 @@ function(my_set_common_properties target)
     )
 
     target_link_options(${target} PUBLIC
-    -static)
+    -static
+    -municode)
    
     target_include_directories(${target} PUBLIC
         ${MY_DIR_PATH}/include

@@ -1,5 +1,6 @@
 #include <boost/date_time/posix_time/posix_time_duration.hpp>
 #include <corecrt_startup.h>
+#include <cstdio>
 #include <libtorrent/settings_pack.hpp>
 #include <string>
 #include <thread>
@@ -24,6 +25,7 @@
 #include <iostream>
 #include <fstream>
 #include <format>
+#include <fcntl.h>  // _O_U16TEXT
 #include "leikaifeng.h"
 #include "mysqliteclass.h"
 #include "mybtclass.h"
@@ -52,7 +54,7 @@ auto GetAppendExecutablePath(const std::wstring& p){
         auto addpath = path.parent_path();
 
         addpath.append(p);
-        Print("GetExecutablePath:", UTF8::GetMultiByte(path), "add:", UTF8::GetMultiByte(addpath));
+        MyWin32Out::Print(L"GetExecutablePath:", path, L"add:", addpath);
         return  addpath.wstring();
 }
 
@@ -83,11 +85,11 @@ void isaddtorreent(lt::session &ses, lt::sha1_hash &hash, SqlMy::MyHashCountTabl
         BtMy::GetHash16String(hash.to_string(), &key);
         int64_t n=0;
         if(!counttable.Insert(key, &n)){
-                Print("inset count table false");
+                MyWin32Out::Print(L"inset count table false");
         }
 
 
-        Print("count ",n);
+        // MyWin32Out::Print("count ",n);
 
 
         if(n ==1){
@@ -100,7 +102,7 @@ void isaddtorreent(lt::session &ses, lt::sha1_hash &hash, SqlMy::MyHashCountTabl
                 ses.async_add_torrent(p);
         }
         else{
-                Print("count > 1 ",n, key);
+               // MyWin32Out::Print("count > 1 ",n, key);
         }
 }
 
@@ -112,7 +114,7 @@ void addtorrent(lt::session &ses, lt::sha1_hash &hash, std::unordered_map<std::s
 
         if (map.find(key) == map.end())
         {
-                // Print("bu cun zai");
+                // MyWin32Out::Print("bu cun zai");
 
                 map.emplace(key, 0);
 
@@ -126,33 +128,10 @@ void addtorrent(lt::session &ses, lt::sha1_hash &hash, std::unordered_map<std::s
         }
         else
         {
-                // Print("yi  cun zai");
+                // MyWin32Out::Print("yi  cun zai");
         }
 }
 
-
-
-void WriteBuffToFile(std::vector<char> &buff, const std::string &path)
-{
-    std::ofstream outputFile(UTF8::GetMultiByteFromUTF8(path).data(), std::ios::binary);
-
-    if (!outputFile)
-    {
-        Exit("open file error");
-    }
-
-    // 将字节缓冲区写入文件
-    outputFile.write(buff.data(), (long long)buff.size());
-
-    if (!outputFile)
-    {
-        Exit("weite file error");
-    }
-
-    
-    outputFile.close();
-
-}
 
 
 void SaveTorrentFile(const lt::torrent_info& info){
@@ -166,9 +145,6 @@ void SaveTorrentFile(const lt::torrent_info& info){
 
         auto filename =std::string{"./torrent/"} + name+".torrent";
 
-        
-        Print("ok");
-       WriteBuffToFile(buffer, filename);
 }
 
 void SaveFileInfo(const lt::torrent_info& info){
@@ -181,13 +157,13 @@ void SaveFileInfo(const lt::torrent_info& info){
 
         auto& filestorm = info.orig_files();
         
-        Print("name:",  UTF8::GetMultiByteFromUTF8(name), "fileCount", fileCount, "total_size", total_size);
+        MyWin32Out::Print(L"name:",  UTF8::GetWideCharFromUTF8(name), L"fileCount", fileCount, L"total_size", total_size);
         for (auto const &n  : filestorm.file_range())
         {
                 auto filepath = filestorm.file_path(n);
                 auto fileSize = filestorm.file_size(n);
 
-                Print("          item:", "fileSize", fileSize, UTF8::GetMultiByteFromUTF8(filepath));
+                MyWin32Out::Print(L"          item:", L"fileSize", fileSize, UTF8::GetWideCharFromUTF8(filepath));
         }
 }
 
@@ -232,8 +208,8 @@ std::unordered_map<std::string, int> findNeed(){
         for (const auto& item : list) {
                auto index = lt::find_metric_idx(item);
                if(index == -1){
-                        Print(item, "not find");
-                        Exit("findNeed error");
+                        MyWin32Out::Print(UTF8::GetWideCharFromUTF8( item), L"not find");
+                        MyWin32Out::Exit(L"findNeed error");
                }
 
                 map.emplace(std::string{item}, index);
@@ -264,8 +240,9 @@ void f(const std::string& u8peer)
 
         p.set_str(lt::settings_pack::string_types::dht_bootstrap_nodes,
                   u8peer);
-        p.set_int(lt::settings_pack::int_types::active_downloads, 100);
-        p.set_int(lt::settings_pack::int_types::active_seeds, 100);
+        p.set_int(lt::settings_pack::int_types::active_downloads, 4000);
+        p.set_int(lt::settings_pack::int_types::active_seeds, 2000); // Reserve slots for seeding
+        p.set_int(lt::settings_pack::int_types::active_limit, 8000);
         p.set_str(lt::settings_pack::listen_interfaces, "0.0.0.0:0,[::]:0");
         lt::session ses{p};
      
@@ -276,7 +253,7 @@ void f(const std::string& u8peer)
         for (;;)
         {
                 while (ses.wait_for_alert(waitmy) == nullptr) {
-                        Print("WAIT NULL");
+                        MyWin32Out::Print(L"WAIT NULL");
                 }
 
                 std::vector<lt::alert *> alerts;
@@ -300,7 +277,7 @@ void f(const std::string& u8peer)
                         {
 
                              
-                                Print("add tr:");
+                                MyWin32Out::Print(L"add tr:");
                         }
                        
                         if (auto v = lt::alert_cast<libtorrent::dht_get_peers_alert>(a))
@@ -316,7 +293,7 @@ void f(const std::string& u8peer)
 
                                 for (auto &statu : statealert->status)
                                 {
-                                        Print("state_update_ name:", UTF8::GetMultiByteFromUTF8(statu.name));
+                                        MyWin32Out::Print(L"state_update_ name:", UTF8::GetWideCharFromUTF8(statu.name));
                                 }
                         }
 
@@ -327,7 +304,7 @@ void f(const std::string& u8peer)
 
                         if (auto torrent_finished = lt::alert_cast<lt::torrent_finished_alert>(a))
                         {
-                                Print("torrent_finished run");
+                                MyWin32Out::Print(L"torrent_finished run");
                         }
                         if (lt::alert_cast<lt::torrent_error_alert>(a))
                         {
@@ -336,13 +313,13 @@ void f(const std::string& u8peer)
 
                         if (auto session_error = lt::alert_cast<lt::session_error_alert>(a))
                         {
-                                Print("session_error run");
+                                MyWin32Out::Print(L"session_error run");
                         }
 
 
                         if (auto metadata_received =lt::alert_cast<lt::metadata_received_alert>(a))
                         {
-                              Print("metadata_received run");
+                              MyWin32Out::Print(L"metadata_received run");
 
                               auto handle = metadata_received->handle;
                                 auto info = handle.torrent_file();
@@ -355,7 +332,7 @@ void f(const std::string& u8peer)
                         {       auto sp = session_stats->counters();
                               for (const auto& item : statucmap) {
                               
-                                Print(item.first, sp[item.second]);
+                                MyWin32Out::Print(UTF8::GetWideCharFromUTF8(item.first) , sp[item.second]);
                               }
                         }
 
@@ -368,21 +345,25 @@ void f(const std::string& u8peer)
 
         }
 }
-int main(int argc, char const *argv[])
+
+
+
+int wmain(int argc, wchar_t* argv[])
 {
         
-
-
+        _setmode(_fileno(stdout), _O_U16TEXT);
+        _setmode(_fileno(stderr), _O_U16TEXT);
+        _setmode(_fileno(stdin), _O_U16TEXT);
 
         try
         {
 
                 if(argc != 2){
-                        Print("need args peer");
+                        MyWin32Out::Print(L"need args peer");
                         return 0;
                 }
-                Print(argv[1]);
-                auto u8peer = UTF8::GetUTF8ToString(UTF8::GetWideCharFromMultiByte(argv[1]));
+                MyWin32Out::Print(argv[1]);
+                auto u8peer = UTF8::GetUTF8FromWideChar(argv[1]);
                    
                 f(u8peer);
         }
@@ -390,4 +371,6 @@ int main(int argc, char const *argv[])
         {
                 std::cerr << "Error: " << e.what() << std::endl;
         }
+
+        return 0;
 }

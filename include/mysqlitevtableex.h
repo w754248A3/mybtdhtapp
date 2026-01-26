@@ -190,7 +190,7 @@ static int templatevtabColumn(
     sqlite3_context *ctx,     /* First argument to sqlite3_result_...() */
     int i                     /* Which column to return */
 ) {
-  Print("need clo", i);
+  MyWin32Out::Print(L"need clo", i);
   templatevtab_cursor *pCur = (templatevtab_cursor *)cur;
 
   auto& v = pCur->vs->at(pCur->index);
@@ -253,7 +253,7 @@ static int templatevtabFilter(sqlite3_vtab_cursor *pVtabCursor, int idxNum,
     
   }
                            
-  Print(v);
+  MyWin32Out::Print(v);
   templatevtab_cursor *pCur = (templatevtab_cursor *)pVtabCursor;
   pCur->iRowid = 1;
   pCur->index=0;
@@ -287,10 +287,10 @@ static int templatevtabBestIndex(sqlite3_vtab *tab,sqlite3_index_info *pIdxInfo)
     for (const auto&  argsItem: needArgs) {
         const auto begin = pIdxInfo->aConstraint;
         const auto end = begin+ pIdxInfo->nConstraint;
-        Print("have find clo index", argsItem.iColumn);
+        MyWin32Out::Print(L"have find clo index", argsItem.iColumn);
         const auto res = std::find_if(begin, end,
         [&argsItem](decltype(*begin) v)->bool{
-            Print("clo index", v.iColumn);
+            MyWin32Out::Print(L"clo index", v.iColumn);
             return v.iColumn == argsItem.iColumn;
         });
 

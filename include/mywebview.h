@@ -2,6 +2,7 @@
 #include "leikaifeng.h"
 #include <cstddef>
 #include <cstdint>
+#include <exception>
 #include <memory>
 #include <string>
 #ifndef _MYWEBVIEW
@@ -82,7 +83,7 @@ void Response(std::shared_ptr<RequestData> data) {
   auto selhot = data->request->GetQueryValue("hot");
   if(key != "")
   {
-      Print(UTF8::GetMultiByteFromUTF8(key));
+      MyWin32Out::Print(UTF8::GetWideCharFromUTF8(key));
       std::string str{};
       if(data->table->SelectFromKey(key,count, offset, &str)){
 
@@ -138,14 +139,14 @@ void RequestLoop(std::shared_ptr<RequestData> data) {
       Response(data);
       n++;
 
-      Print(n, "re use link");
+      MyWin32Out::Print(n, L"re use link");
     }
   } catch (Win32SysteamException &e) {
-    Print(e.what());
+    MyWin32Out::Print(e.what());
   } catch (HttpReqest::FormatException &e) {
-    Print("request format error:", e.what());
+    MyWin32Out::Print(L"request format error:", UTF8::GetWideCharFromUTF8(e.what()) );
   } catch (::SystemException &e) {
-    Print("SystemException :", e.what());
+    MyWin32Out::Print(L"SystemException :",UTF8::GetWideCharFromUTF8(e.what()) );
   }
 }
 
@@ -159,7 +160,7 @@ void Func(std::shared_ptr<SqlMy::MyWebViewSelectClass> table, std::wstring path)
         TcpSocketListen lis{};
         lis.Bind(IPEndPoint{"0.0.0.0", 8066});
         lis.Listen(1);
-        Print(("ip:port===0.0.0.0:8066"));
+        MyWin32Out::Print((L"ip:port===0.0.0.0:8066"));
         while (true) {
           auto data = std::make_shared<RequestData>();
 

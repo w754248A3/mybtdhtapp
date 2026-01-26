@@ -48,7 +48,7 @@ namespace SqlMy
   public:
     MySqliteStmt(sqlite3 *db, const std::string &sql, bool is_long_use = false) : m_db(db)
     {
-      Print(sql);
+      MyWin32Out::Print(UTF8::GetWideCharFromUTF8(sql) );
       const char *notUse = NULL;
      
       auto res = sqlite3_prepare_v3(
@@ -62,8 +62,8 @@ namespace SqlMy
       if (res != SQLITE_OK)
       {
 
-        Print(sqlite3_errmsg(m_db));
-        Exit("prepare stm error");
+        MyWin32Out::Print(UTF8::GetWideCharFromUTF8(sqlite3_errmsg(m_db)) );
+        MyWin32Out::Exit(L"prepare stm error");
       }
     }
 
@@ -92,8 +92,8 @@ namespace SqlMy
         }
         auto excode = sqlite3_extended_errcode(m_db);
        
-        Print("code", (int)res, "excode:", excode, "error meg", sqlite3_errmsg(m_db), "call meg", meg);
-        Exit("step stm error");
+        MyWin32Out::Print(L"code", (int)res, L"excode:", excode, L"error meg", UTF8::GetWideCharFromUTF8(sqlite3_errmsg(m_db)) , L"call meg",UTF8::GetWideCharFromUTF8(meg));
+        MyWin32Out::Exit(L"step stm error");
       }
 
       return SqlStepCode::OK;
@@ -121,8 +121,8 @@ namespace SqlMy
 
       if (res != SQLITE_OK)
       {
-        Print(sqlite3_errmsg(m_db));
-        Exit("ClaerBind stm error");
+        MyWin32Out::Print(UTF8::GetWideCharFromUTF8(sqlite3_errmsg(m_db)) );
+        MyWin32Out::Exit(L"ClaerBind stm error");
       }
     }
 
@@ -135,7 +135,7 @@ namespace SqlMy
 
       if(p == NULL){
         
-        Exit("GetBindExpandedSql stm error");
+        MyWin32Out::Exit(L"GetBindExpandedSql stm error");
       }
      
       std::string sql{p};
@@ -156,8 +156,8 @@ namespace SqlMy
       auto res = sqlite3_column_text(m_stmt, index);
       if (res == NULL)
       {
-        Print(sqlite3_errmsg(m_db));
-        Exit("get text error return null");
+        MyWin32Out::Print(UTF8::GetWideCharFromUTF8(sqlite3_errmsg(m_db)) );
+        MyWin32Out::Exit(L"get text error return null");
       }
 
       return std::string{(const char *)res};
@@ -172,8 +172,8 @@ namespace SqlMy
 
       if (res != SQLITE_OK && res != uperrorcode)
       {
-        Print(sqlite3_errmsg(m_db));
-        Exit("Reset stm error");
+        MyWin32Out::Print(UTF8::GetWideCharFromUTF8(sqlite3_errmsg(m_db)) );
+        MyWin32Out::Exit(L"Reset stm error");
       }
     }
 
@@ -183,8 +183,8 @@ namespace SqlMy
 
       if (res != SQLITE_OK)
       {
-        Print(sqlite3_errmsg(m_db));
-        Exit("bind stm Text error");
+        MyWin32Out::Print(UTF8::GetWideCharFromUTF8(sqlite3_errmsg(m_db)) );
+        MyWin32Out::Exit(L"bind stm Text error");
       }
     }
 
@@ -194,8 +194,9 @@ namespace SqlMy
 
       if (res != SQLITE_OK)
       {
-        Print(sqlite3_errmsg(m_db));
-        Exit("bind stm Int64 error");
+        
+        MyWin32Out::Print(UTF8::GetWideCharFromUTF8(sqlite3_errmsg(m_db) ) );
+        MyWin32Out::Exit(L"bind stm Int64 error");
       }
     }
 
@@ -205,8 +206,8 @@ namespace SqlMy
 
       if (res != SQLITE_OK)
       {
-        Print(sqlite3_errmsg(m_db));
-        Exit("bind stm Pointer error");
+        MyWin32Out::Print(UTF8::GetWideCharFromUTF8(sqlite3_errmsg(m_db)) );
+        MyWin32Out::Exit(L"bind stm Pointer error");
       }
     }
 
@@ -220,7 +221,7 @@ namespace SqlMy
 
       if (p == NULL)
       {
-        Exit("get fts5 api is null");
+        MyWin32Out::Exit(L"get fts5 api is null");
       }
 
       return p;
@@ -251,8 +252,8 @@ namespace SqlMy
       if (res != SQLITE_OK)
       {
 
-        Print(sqlite3_errmsg(m_db));
-        Exit("open sqlite db error");
+        MyWin32Out::Print(UTF8::GetWideCharFromUTF8(sqlite3_errmsg(m_db)) );
+        MyWin32Out::Exit(L"open sqlite db error");
       }
     }
 
@@ -267,7 +268,7 @@ namespace SqlMy
 
 
       if (stmt.Step("Attach error") != SqlStepCode::OK){
-         Exit("Attach error");
+         MyWin32Out::Exit(L"Attach error");
       }
 
 
@@ -280,8 +281,8 @@ namespace SqlMy
         auto res = sqlite3_busy_timeout(m_db, milliseconds);
 
         if(res != SQLITE_OK){
-          Print(res, sqlite3_errmsg(m_db));
-          Exit("SetBusyTimeout error");
+          MyWin32Out::Print(res, UTF8::GetWideCharFromUTF8(sqlite3_errmsg(m_db)) );
+          MyWin32Out::Exit(L"SetBusyTimeout error");
         }
     }
 
@@ -291,15 +292,15 @@ namespace SqlMy
       auto res = sqlite3_trace_v2(m_db, SQLITE_TRACE_STMT, 
       [](unsigned int flags, void* p, void* p2, void* p3){
 
-        Print("flags:", flags, "sql:", MySqliteStmt::GetBindExpandedSql((sqlite3_stmt*)p2));
+        MyWin32Out::Print(L"flags:", flags, L"sql:",UTF8::GetWideCharFromUTF8( MySqliteStmt::GetBindExpandedSql((sqlite3_stmt*)p2)) );
         return 0;
       }, NULL);
 
 
       if (res != SQLITE_OK)
       {
-        Print(sqlite3_errmsg(m_db));
-        Exit("RegisterTrace error");
+        MyWin32Out::Print(UTF8::GetWideCharFromUTF8(sqlite3_errmsg(m_db)) );
+        MyWin32Out::Exit(L"RegisterTrace error");
       }
 
     }
@@ -308,8 +309,8 @@ namespace SqlMy
       auto res = sqlite3_db_config(m_db, v);
 
       if(res != SQLITE_OK){
-        Print(sqlite3_errmsg(m_db));
-        Exit("SetConnectConfig error");
+        MyWin32Out::Print(UTF8::GetWideCharFromUTF8(sqlite3_errmsg(m_db)) );
+        MyWin32Out::Exit(L"SetConnectConfig error");
       }
     }
 
@@ -320,7 +321,7 @@ namespace SqlMy
 
       if (res != SQLITE_OK)
       {
-        Exit("can not close sqlite db");
+        MyWin32Out::Exit(L"can not close sqlite db");
       }
     }
   };
@@ -458,7 +459,7 @@ namespace SqlMy
 
           if (xToken(pCtx, 0, pToken, (int)nToken, (int)iStart, (int)iEnd) != SQLITE_OK)
           {
-            Exit("xToken call not ok error");
+            MyWin32Out::Exit(L"xToken call not ok error");
           }
 
           char c = pToken[0];
@@ -468,15 +469,15 @@ namespace SqlMy
 
             if (xToken(pCtx, FTS5_TOKEN_COLOCATED, &c, (int)nToken, (int)iStart, (int)iEnd) != SQLITE_OK)
             {
-              Exit("xToken COLOCATED call not ok error");
+              MyWin32Out::Exit(L"xToken COLOCATED call not ok error");
             }
           }
         }
         else
         {
 
-          Print(error, nText, offset);
-          Exit("Tokenize find utf8 char error");
+          MyWin32Out::Print(UTF8::GetWideCharFromUTF8(error) , nText, offset);
+          MyWin32Out::Exit(L"Tokenize find utf8 char error");
         }
       }
 
@@ -497,7 +498,7 @@ namespace SqlMy
 
       if (res != SQLITE_OK)
       {
-        Exit("RegigTokenizer error");
+        MyWin32Out::Exit(L"RegigTokenizer error");
       }
     }
 
@@ -507,7 +508,7 @@ namespace SqlMy
     MySqliteStmt stmt{db->Get(), sql};
    
     if(stmt.Step("CreateTable")!= SqlStepCode::OK){
-      Exit("create table error");
+      MyWin32Out::Exit(L"create table error");
     }
 
    
@@ -549,21 +550,21 @@ namespace SqlMy
         return true;
       }
       else{
-            Exit("start Transaction error");
+            MyWin32Out::Exit(L"start Transaction error");
             return false;
       }
     }
 
     void Commit(){
         if(m_commit->Step("Commit") != SqlStepCode::OK){
-            Exit("commit Transaction error");
+            MyWin32Out::Exit(L"commit Transaction error");
         }
     }
 
 
     void Rollback(){
       if(m_rollback->Step("Rollback") != SqlStepCode::OK){
-          Exit("rollback Transaction error");
+          MyWin32Out::Exit(L"rollback Transaction error");
         }
     }
 
@@ -584,7 +585,7 @@ namespace SqlMy
     
     bool RunOnTransaction(std::function<bool()> func){
         if(!this->BeginLoop()){
-          Exit("can not start Begin");
+          MyWin32Out::Exit(L"can not start Begin");
         }
       
         if(func()){
@@ -698,7 +699,7 @@ namespace SqlMy
           
           }
           else{
-            Exit("HaveHash value result other code");
+            MyWin32Out::Exit(L"HaveHash value result other code");
             return false;
           }
 
@@ -819,7 +820,7 @@ namespace SqlMy
               )""""};
 
               if(stmt.Step("create index on file_table error") != SqlStepCode::OK){
-                Exit("create index on file_table error");
+                MyWin32Out::Exit(L"create index on file_table error");
               }
           }
 
