@@ -121,7 +121,7 @@ endfunction()
 
 
 
-add_executable(build_precompile_headers ./build_precompile_headers.cpp)
+add_executable(build_precompile_headers ./src/build_precompile_headers.cpp)
 
 
 my_set_common_properties(build_precompile_headers)
@@ -151,7 +151,7 @@ my_set_target_out(build_precompile_headers)
 
 
 
-add_executable(mydhtrecord ./src/mywebview.cpp ./mydhtrecord.cpp)
+add_executable(mydhtrecord ./src/mywebview.cpp ./src/mydhtrecord.cpp)
 
 
 my_set_common_properties(mydhtrecord)
