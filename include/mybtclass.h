@@ -13,8 +13,19 @@
 
 namespace BtMy
 {
+    
+    struct Torrent_Data{
+        std::string hash;
+        std::string name;
+        int64_t size;
+        std::vector<std::pair<std::string, int64_t>> files;
+    };
 
-    void GetHash16String(const std::string &s, std::string *out)
+    struct BtFunc{
+     
+    
+
+    static void GetHash16String(const std::string &s, std::string *out)
     {
         auto index = out->size();
 
@@ -44,7 +55,7 @@ namespace BtMy
 
     }
 
-    void GetHashFromInfo(const lt::torrent_info& info, std::string* out){
+    static void GetHashFromInfo(const lt::torrent_info& info, std::string* out){
         auto& hash = info.info_hashes();
 
         if(hash.has_v1()){
@@ -55,14 +66,7 @@ namespace BtMy
         }
     }
 
-    struct Torrent_Data{
-        std::string hash;
-        std::string name;
-        int64_t size;
-        std::vector<std::pair<std::string, int64_t>> files;
-    };
-
-    Torrent_Data GetTorrentData(const lt::torrent_info& info){
+    static Torrent_Data GetTorrentData(const lt::torrent_info& info){
         Torrent_Data data{};
 
         GetHashFromInfo(info, &data.hash);
@@ -88,7 +92,7 @@ namespace BtMy
         return data;
     }   
     
-
+    };
 }
 
 #endif // !_MYBTCLASS

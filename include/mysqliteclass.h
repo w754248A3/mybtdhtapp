@@ -16,7 +16,7 @@
 #include <stdio.h>
 #include <iostream>
 #include <cstdint>
-#include "leikaifeng.h"
+#include "mypublicapi.h"
 #include <fstream>
 #include <string>
 #include <vector>
@@ -326,10 +326,10 @@ namespace SqlMy
     }
   };
 
-  namespace MySqliteTokenizers
+  class MySqliteTokenizers
   {
-
-    bool findFirstUtf8Char(const char *str, size_t offset, size_t size,
+    public:
+    static bool findFirstUtf8Char(const char *str, size_t offset, size_t size,
                            size_t *findFirstCharSize, const char **errorMsg)
     {
       if (str == nullptr || offset >= size || findFirstCharSize == nullptr)
@@ -410,19 +410,19 @@ namespace SqlMy
       return true;
     }
 
-    int CreateTokenizer(void *, const char **azArg, int nArg, Fts5Tokenizer **ppOut)
+    static int CreateTokenizer(void *, const char **azArg, int nArg, Fts5Tokenizer **ppOut)
     {
       *ppOut = (Fts5Tokenizer *)(new int64_t());
 
       return SQLITE_OK;
     }
 
-    void DeleteTokenizer(Fts5Tokenizer *p)
+    static void DeleteTokenizer(Fts5Tokenizer *p)
     {
       delete ((int64_t *)p);
     }
 
-    int TokenizeTokenizer(Fts5Tokenizer *,
+    static int TokenizeTokenizer(Fts5Tokenizer *,
                           void *pCtx,
                           int flags, /* FTS5_TOKENIZE_* 标志的掩码 */
                           const char *pText, int nText,
@@ -484,7 +484,7 @@ namespace SqlMy
       return SQLITE_OK;
     }
 
-    void RegisterTokenizer(fts5_api *papi, const std::string &name)
+    static void RegisterTokenizer(fts5_api *papi, const std::string &name)
     {
       fts5_tokenizer v{};
 
@@ -502,17 +502,21 @@ namespace SqlMy
       }
     }
 
-  }
+  };
 
-  void CreateTable(std::shared_ptr<MySqliteConnect> db, const std::string& sql){
-    MySqliteStmt stmt{db->Get(), sql};
-   
-    if(stmt.Step("CreateTable")!= SqlStepCode::OK){
-      MyWin32Out::Exit(L"create table error");
+  class SqlFunc{
+    public:
+    static void CreateTable(std::shared_ptr<MySqliteConnect> db, const std::string& sql){
+      MySqliteStmt stmt{db->Get(), sql};
+    
+      if(stmt.Step("CreateTable")!= SqlStepCode::OK){
+        MyWin32Out::Exit(L"create table error");
+      }
+
+    
     }
 
-   
-  }
+  };
 
   class MyTransactionStmt{
 
@@ -609,7 +613,7 @@ namespace SqlMy
     public:
       MyHashCountTable(std::shared_ptr<MySqliteConnect> db): m_db(db){
 
-         SqlMy::CreateTable(db,
+         SqlMy::SqlFunc::CreateTable(db,
           R""""(
             CREATE TABLE IF NOT EXISTS mymdb567.hash_count_table (
             id INTEGER PRIMARY KEY,
@@ -660,7 +664,7 @@ namespace SqlMy
     public:
       MyHashTable(std::shared_ptr<MySqliteConnect> db): m_db(db){
 
-         SqlMy::CreateTable(db,
+         SqlMy::SqlFunc::CreateTable(db,
           R""""(
             CREATE TABLE IF NOT EXISTS hash_table (
             id INTEGER PRIMARY KEY,
@@ -744,7 +748,7 @@ namespace SqlMy
 
 
 
-         SqlMy::CreateTable(db,
+         SqlMy::SqlFunc::CreateTable(db,
           R""""(
             CREATE VIRTUAL TABLE IF NOT EXISTS
              fulltext_table USING fts5(text, tokenize="mytokenizer", content='', columnsize=0);               
@@ -804,7 +808,7 @@ namespace SqlMy
 
 
          
-         SqlMy::CreateTable(db,
+         SqlMy::SqlFunc::CreateTable(db,
           R""""(
            CREATE TABLE IF NOT EXISTS file_table (
             id INTEGER PRIMARY KEY,

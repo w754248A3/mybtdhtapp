@@ -27,7 +27,7 @@
 #include <fstream>
 #include <format>
 #include <fcntl.h>  // _O_U16TEXT
-#include "leikaifeng.h"
+#include "mypublicapi.h"
 #include "mysqliteclass.h"
 #include "mybtclass.h"
 #include "mywebview.h"
@@ -83,7 +83,7 @@ void settorrent(lt::add_torrent_params &p)
 void isaddtorreent(lt::session &ses, lt::sha1_hash &hash, SqlMy::MyHashCountTable& counttable){
         std::string key{};
 
-        BtMy::GetHash16String(hash.to_string(), &key);
+        BtMy::BtFunc::GetHash16String(hash.to_string(), &key);
         int64_t n=0;
         if(!counttable.Insert(key, &n)){
                 MyWin32Out::Print(L"inset count table false");
@@ -142,7 +142,7 @@ void SaveTorrentFile(const lt::torrent_info& info){
         bencode(std::back_inserter(buffer), te);
 
         std::string name;
-        BtMy::GetHash16String(info.info_hashes().get_best().to_string(), &name);
+        BtMy::BtFunc::GetHash16String(info.info_hashes().get_best().to_string(), &name);
 
         auto filename =std::string{"./torrent/"} + name+".torrent";
 
@@ -186,7 +186,7 @@ auto createconnect(){
 void runwebview(){
         auto db = createconnect();
         auto path = GetAppendExecutablePath(L"webpage");
-        MyWebView::Func(std::make_shared<SqlMy::MyWebViewSelectClass>(db), path);
+        MyWebView::StartServer(std::make_shared<SqlMy::MyWebViewSelectClass>(db), path);
 }
 
 std::unordered_map<std::string, int> findNeed(){
@@ -344,7 +344,7 @@ void f(const std::string& u8peer)
 
                               handle.post_status();
                                 auto info = handle.torrent_file();
-                               auto data = BtMy::GetTorrentData(*info);
+                               auto data = BtMy::BtFunc::GetTorrentData(*info);
                                table.Insert(data);
                                 //ses.remove_torrent(handle);
                         }

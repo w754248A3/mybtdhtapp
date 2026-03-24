@@ -33,14 +33,21 @@ function(my_set_common_properties target)
    
     target_include_directories(${target} PUBLIC
         ${MY_DIR_PATH}/include
-        ${MY_DIR_PATH}/../CppHttpFileServer/include
+        ${MY_DIR_PATH}/../CppHttpFileServer/src/mypublicapi/include
+        ${MY_DIR_PATH}/../CppHttpFileServer/src//myserverapi/include
     )
 
 
+    target_link_directories(${target} PUBLIC
+        ${MY_DIR_PATH}/../CppHttpFileServer/build/src/mypublicapi
+        ${MY_DIR_PATH}/../CppHttpFileServer/build/src/myserverapi
+    )
     
 
 
     target_link_libraries(${target} PUBLIC
+        mypublicapi
+        myserverapi
         torrent-rasterbar
         boost_atomic-mt
         boost_charconv-mt
@@ -94,6 +101,9 @@ function(my_set_common_properties target)
         shlwapi
         Iphlpapi
         Mswsock
+        oleaut32
+        uuid
+
     )
 
    
@@ -141,7 +151,7 @@ my_set_target_out(build_precompile_headers)
 
 
 
-add_executable(mydhtrecord ./mydhtrecord.cpp)
+add_executable(mydhtrecord ./src/mywebview.cpp ./mydhtrecord.cpp)
 
 
 my_set_common_properties(mydhtrecord)
@@ -151,54 +161,3 @@ target_precompile_headers(mydhtrecord REUSE_FROM build_precompile_headers)
 my_set_target_out(mydhtrecord)
 
 
-
-
-add_executable(testsqlite 
-./include/mybtclass.h
-./include/mysqliteclass.h
-./include/mytf.h
-./../CppHttpFileServer/include/leikaifeng.h
-./../CppHttpFileServer/include/myio.h
-./testsqlite.cpp)
-
-my_set_common_properties(testsqlite)
-
-target_precompile_headers(testsqlite REUSE_FROM mydhtrecord)
-
-my_set_target_out(testsqlite)
-
-
-
-add_executable(mybtdownloadfromonlypeer ./mybtdownloadfromonlypeer.cpp)
-
-my_set_common_properties(mybtdownloadfromonlypeer)
-
-target_precompile_headers(mybtdownloadfromonlypeer REUSE_FROM mydhtrecord)
-
-my_set_target_out(mybtdownloadfromonlypeer)
-
-
-
-add_executable(test ./test.cpp)
-
-my_set_common_properties(test)
-
-target_precompile_headers(test REUSE_FROM mydhtrecord)
-
-my_set_target_out(test)
-
-
-
-add_executable(testsqliteex
-./include/mybtclass.h
-./include/mysqliteclass.h
-./include/mytf.h
-./../CppHttpFileServer/include/leikaifeng.h
-./../CppHttpFileServer/include/myio.h
-./testsqliteex.cpp)
-
-my_set_common_properties(testsqliteex)
-
-target_precompile_headers(testsqliteex REUSE_FROM mydhtrecord)
-
-my_set_target_out(testsqliteex)
