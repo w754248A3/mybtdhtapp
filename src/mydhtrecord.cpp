@@ -15,6 +15,7 @@
 #endif
 
 #include <libtorrent/session.hpp>
+#include <libtorrent/session_params.hpp>
 #include <libtorrent/add_torrent_params.hpp>
 #include <libtorrent/torrent_handle.hpp>
 #include <libtorrent/magnet_uri.hpp>
@@ -31,6 +32,7 @@
 #include "mysqliteclass.h"
 #include "mybtclass.h"
 #include "mywebview.h"
+#include "mydhtstorage.h"
 
 
 
@@ -255,7 +257,13 @@ void f(const std::string& u8peer)
         p.set_int(lt::settings_pack::int_types::active_seeds, active_seeds); // Reserve slots for seeding
         p.set_int(lt::settings_pack::int_types::active_limit, allcount);
         p.set_str(lt::settings_pack::listen_interfaces, "0.0.0.0:0,[::]:0");
-        lt::session ses{p};
+
+        lt::session_params params{p};
+        params.dht_storage_constructor = [](lt::settings_interface const& settings) {
+                return MyDhtStorage::CreateMemoryDhtStorage(settings);
+        };
+
+        lt::session ses{std::move(params)};
      
         //std::unordered_map<std::string, int> map{};
       
