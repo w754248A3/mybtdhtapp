@@ -9,12 +9,22 @@
 #include <libtorrent/entry.hpp>
 #include <libtorrent/kademlia/item.hpp>
 #include <libtorrent/settings_pack.hpp>
+#include <libtorrent/version.hpp>
 
 namespace {
 
 using clock_type = std::chrono::steady_clock;
 using dht_sequence_number = lt::dht::sequence_number;
 using dht_node_id = lt::dht::node_id;
+
+std::int64_t SequenceToInt64(dht_sequence_number const& seq)
+{
+#if LIBTORRENT_VERSION_NUM < 20000
+    return static_cast<std::int64_t>(seq.value);
+#else
+    return static_cast<std::int64_t>(seq);
+#endif
+}
 
 struct Sha1HashHasher {
     std::size_t operator()(lt::sha1_hash const& h) const noexcept
@@ -48,7 +58,7 @@ constexpr std::size_t kMaxTorrentNameLength = 50;
 constexpr auto kPeerTtl = std::chrono::minutes(30);
 constexpr auto kItemTtl = std::chrono::hours(2);
 
-class MemoryDhtStorage final : public MyDhtStorage::dht_storage_interface_t {
+class MemoryDhtStorage : public MyDhtStorage::dht_storage_interface_t {
 public:
     explicit MemoryDhtStorage(lt::settings_interface const& settings)
         : m_max_peers_reply(settings.get_int(lt::settings_pack::dht_max_peers_reply))
@@ -167,7 +177,7 @@ public:
         if (found == m_mutable_items.end()) return false;
 
         MutableItemRecord const& data = found->second;
-        item["seq"] = static_cast<std::int64_t>(data.sequence);
+        item["seq"] = SequenceToInt64(data.sequence);
 
         if (force_fill || seq < data.sequence)
         {
