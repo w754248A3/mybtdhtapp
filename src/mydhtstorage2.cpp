@@ -16,11 +16,6 @@ using clock_type = std::chrono::steady_clock;
 using dht_sequence_number = lt::dht::sequence_number;
 using dht_node_id = lt::dht::node_id;
 
-std::int64_t SequenceToInt64(dht_sequence_number const& seq)
-{
-    return static_cast<std::int64_t>(seq.value);
-}
-
 struct Sha1HashHasher {
     std::size_t operator()(lt::sha1_hash const& h) const noexcept
     {
@@ -40,15 +35,6 @@ struct PeerRecord {
     clock_type::time_point seen_at = clock_type::now();
 };
 
-struct MutableItemRecord {
-    std::vector<char> value;
-    lt::dht::signature signature;
-    dht_sequence_number sequence{0};
-    lt::dht::public_key public_key;
-    std::vector<char> salt;
-    clock_type::time_point seen_at = clock_type::now();
-};
-
 constexpr std::size_t kMaxTorrentNameLength = 50;
 constexpr auto kPeerTtl = std::chrono::minutes(30);
 constexpr auto kItemTtl = std::chrono::hours(2);
@@ -64,7 +50,7 @@ public:
 
     void update_node_ids(std::vector<dht_node_id> const& ids) override
     {
-        m_node_ids = ids;
+        
     }
 
     bool get_peers(lt::sha1_hash const& info_hash, bool noseed, bool scrape,
@@ -77,8 +63,8 @@ public:
         if (scrape)
         {
             // 教学实现：仅返回占位 bloom filter。
-            peers["BFpe"] = std::string(256 / 8, '\0');
-            peers["BFsd"] = std::string(256 / 8, '\0');
+            //peers["BFpe"] = std::string(256 / 8, '\0');
+            //peers["BFsd"] = std::string(256 / 8, '\0');
             return false;
         }
 
@@ -127,66 +113,26 @@ public:
 
     bool get_immutable_item(lt::sha1_hash const& target, lt::entry& item) const override
     {
-        auto const found = m_immutable_items.find(target);
-        if (found == m_immutable_items.end()) return false;
-
-        lt::bdecode_node decoded;
-        lt::error_code ec;
-        auto const& buf = found->second;
-        lt::bdecode(buf.data(), buf.data() + buf.size(), decoded, ec);
-        if (ec) return false;
-
-        item["v"] = decoded;
-        return true;
+        return false;
     }
 
     void put_immutable_item(lt::sha1_hash const& target, lt::span<char const> buf,
         lt::address const& addr) override
     {
-        (void)addr;
-        if (m_immutable_items.find(target) != m_immutable_items.end()) return;
-
-        if (m_immutable_items.size() >= static_cast<std::size_t>(m_max_items))
-        {
-            m_immutable_items.erase(m_immutable_items.begin());
-        }
-
-        m_immutable_items.emplace(target, std::vector<char>(buf.begin(), buf.end()));
-        m_immutable_seen[target] = clock_type::now();
+        
     }
 
     bool get_mutable_item_seq(lt::sha1_hash const& target,
         dht_sequence_number& seq) const override
     {
-        auto const found = m_mutable_items.find(target);
-        if (found == m_mutable_items.end()) return false;
-
-        seq = found->second.sequence;
-        return true;
+        return false;
     }
 
     bool get_mutable_item(lt::sha1_hash const& target, dht_sequence_number seq,
         bool force_fill, lt::entry& item) const override
     {
-        auto const found = m_mutable_items.find(target);
-        if (found == m_mutable_items.end()) return false;
-
-        MutableItemRecord const& data = found->second;
-        item["seq"] = SequenceToInt64(data.sequence);
-
-        if (force_fill || seq < data.sequence)
-        {
-            lt::bdecode_node decoded;
-            lt::error_code ec;
-            auto const& value = data.value;
-            lt::bdecode(value.data(), value.data() + value.size(), decoded, ec);
-            if (!ec) item["v"] = decoded;
-
-            item["sig"] = std::string(data.signature.bytes.begin(), data.signature.bytes.end());
-            item["k"] = std::string(data.public_key.bytes.begin(), data.public_key.bytes.end());
-        }
-
-        return true;
+        
+        return false;
     }
 
     void put_mutable_item(lt::sha1_hash const& target, lt::span<char const> buf,
@@ -194,29 +140,7 @@ public:
         lt::dht::public_key const& pk, lt::span<char const> salt,
         lt::address const& addr) override
     {
-        (void)addr;
-
-        auto const found = m_mutable_items.find(target);
-        if (found != m_mutable_items.end() && seq <= found->second.sequence)
-        {
-            return;
-        }
-
-        if (m_mutable_items.size() >= static_cast<std::size_t>(m_max_items)
-            && found == m_mutable_items.end())
-        {
-            m_mutable_items.erase(m_mutable_items.begin());
-        }
-
-        MutableItemRecord rec;
-        rec.value.assign(buf.begin(), buf.end());
-        rec.signature = sig;
-        rec.sequence = seq;
-        rec.public_key = pk;
-        rec.salt.assign(salt.begin(), salt.end());
-        rec.seen_at = clock_type::now();
-
-        m_mutable_items[target] = std::move(rec);
+        
     }
 
     int get_infohashes_sample(lt::entry& item) override
@@ -253,26 +177,6 @@ public:
             else ++it;
         }
 
-        for (auto it = m_immutable_seen.begin(); it != m_immutable_seen.end();)
-        {
-            if (now - it->second > kItemTtl)
-            {
-                m_immutable_items.erase(it->first);
-                it = m_immutable_seen.erase(it);
-            }
-            else
-            {
-                ++it;
-            }
-        }
-
-        for (auto it = m_mutable_items.begin(); it != m_mutable_items.end();)
-        {
-            if (now - it->second.seen_at > kItemTtl)
-                it = m_mutable_items.erase(it);
-            else
-                ++it;
-        }
     }
 
     lt::dht::dht_storage_counters counters() const override
@@ -287,25 +191,9 @@ public:
             total_peers += static_cast<std::int32_t>(list.size());
         }
         c.peers = total_peers;
-        c.immutable_data = static_cast<std::int32_t>(m_immutable_items.size());
-        c.mutable_data = static_cast<std::int32_t>(m_mutable_items.size());
+        c.immutable_data = 0;
+        c.mutable_data = 0;
         return c;
-    }
-
-    std::size_t num_torrents() const override
-    {
-        return m_peers.size();
-    }
-
-    std::size_t num_peers() const override
-    {
-        std::size_t total_peers = 0;
-        for (auto const& [hash, list] : m_peers)
-        {
-            (void)hash;
-            total_peers += list.size();
-        }
-        return total_peers;
     }
 
 private:
@@ -313,12 +201,7 @@ private:
     int m_max_torrents = 2000;
     int m_max_items = 500;
 
-    std::vector<dht_node_id> m_node_ids;
-
     std::unordered_map<lt::sha1_hash, std::vector<PeerRecord>, Sha1HashHasher> m_peers;
-    std::unordered_map<lt::sha1_hash, std::vector<char>, Sha1HashHasher> m_immutable_items;
-    std::unordered_map<lt::sha1_hash, clock_type::time_point, Sha1HashHasher> m_immutable_seen;
-    std::unordered_map<lt::sha1_hash, MutableItemRecord, Sha1HashHasher> m_mutable_items;
 };
 
 } // namespace

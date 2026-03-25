@@ -311,9 +311,11 @@ void f(const std::string& u8peer)
                         {
 
                                 for (auto &statu : statealert->status)
-                                {
+                                {       auto n = statu.queue_position;
+
+                                        
                                         MyWin32Out::Print(L"state_update_ name:", UTF8::GetWideCharFromUTF8(statu.name), 
-                                        L"queue_position",   statu.queue_position,
+                                        L"queue_position",  static_cast<int>(n) ,
                                         L"added_time", statu.added_time,
                                         L"completed_time", statu.completed_time,
                                         

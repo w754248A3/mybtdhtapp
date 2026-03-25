@@ -16,6 +16,7 @@ function(my_set_common_properties target)
     target_compile_definitions(${target} PUBLIC
         _WIN32_WINNT=0x0602
         NTDDI_VERSION=0x06020000
+        TORRENT_ABI_VERSION=2
     )
    
     target_compile_options(${target} PUBLIC
