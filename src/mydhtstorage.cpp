@@ -292,18 +292,18 @@ public:
         return c;
     }
 
-    int num_torrents() const override
+    std::size_t num_torrents() const override
     {
-        return static_cast<int>(m_peers.size());
+        return m_peers.size();
     }
 
-    int num_peers() const override
+    std::size_t num_peers() const override
     {
-        int total_peers = 0;
+        std::size_t total_peers = 0;
         for (auto const& [hash, list] : m_peers)
         {
             (void)hash;
-            total_peers += static_cast<int>(list.size());
+            total_peers += list.size();
         }
         return total_peers;
     }
