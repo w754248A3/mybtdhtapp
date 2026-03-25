@@ -32,7 +32,7 @@
 #include "mysqliteclass.h"
 #include "mybtclass.h"
 #include "mywebview.h"
-#include "mydhtstorage.h"
+#include "mydhtstorage2.h"
 
 
 
@@ -260,7 +260,7 @@ void f(const std::string& u8peer)
 
         lt::session_params params{p};
         params.dht_storage_constructor = [](lt::settings_interface const& settings) {
-                return MyDhtStorage::CreateMemoryDhtStorage(settings);
+                return MyDhtStorage2::CreateMemoryDhtStorage(settings);
         };
 
         lt::session ses{std::move(params)};

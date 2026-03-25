@@ -151,7 +151,7 @@ my_set_target_out(build_precompile_headers)
 
 
 
-add_executable(mydhtrecord ./src/mywebview.cpp ./src/mydhtrecord.cpp ./src/mydhtstorage.cpp)
+add_executable(mydhtrecord ./src/mywebview.cpp ./src/mydhtrecord.cpp ./src/mydhtstorage2.cpp)
 
 
 my_set_common_properties(mydhtrecord)
