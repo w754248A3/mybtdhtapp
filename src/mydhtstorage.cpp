@@ -13,14 +13,16 @@
 namespace {
 
 using clock_type = std::chrono::steady_clock;
+using dht_sequence_number = lt::dht::sequence_number;
+using dht_node_id = lt::dht::node_id;
 
 struct Sha1HashHasher {
     std::size_t operator()(lt::sha1_hash const& h) const noexcept
     {
         std::size_t seed = 0;
-        for (char const c : h)
+        for (auto const c : h)
         {
-            seed = (seed * 131) ^ static_cast<unsigned char>(c);
+            seed = (seed * 131) ^ static_cast<std::size_t>(c);
         }
         return seed;
     }
@@ -36,7 +38,7 @@ struct PeerRecord {
 struct MutableItemRecord {
     std::vector<char> value;
     lt::dht::signature signature;
-    lt::dht::sequence_number sequence = 0;
+    dht_sequence_number sequence{0};
     lt::dht::public_key public_key;
     std::vector<char> salt;
     clock_type::time_point seen_at = clock_type::now();
@@ -46,7 +48,7 @@ constexpr std::size_t kMaxTorrentNameLength = 50;
 constexpr auto kPeerTtl = std::chrono::minutes(30);
 constexpr auto kItemTtl = std::chrono::hours(2);
 
-class MemoryDhtStorage final : public lt::dht::dht_storage_interface {
+class MemoryDhtStorage final : public MyDhtStorage::dht_storage_interface_t {
 public:
     explicit MemoryDhtStorage(lt::settings_interface const& settings)
         : m_max_peers_reply(settings.get_int(lt::settings_pack::dht_max_peers_reply))
@@ -55,7 +57,7 @@ public:
     {
     }
 
-    void update_node_ids(std::vector<lt::node_id> const& ids) override
+    void update_node_ids(std::vector<dht_node_id> const& ids) override
     {
         m_node_ids = ids;
     }
@@ -80,7 +82,7 @@ public:
         for (PeerRecord const& p : found->second)
         {
             if (noseed && p.seed) continue;
-            values.emplace_back(lt::entry(p.endpoint));
+            values.emplace_back(p.endpoint.address().to_string() + ":" + std::to_string(p.endpoint.port()));
             ++added;
             if (added >= m_max_peers_reply) break;
         }
@@ -125,7 +127,8 @@ public:
 
         lt::bdecode_node decoded;
         lt::error_code ec;
-        lt::bdecode(found->second, decoded, ec);
+        auto const& buf = found->second;
+        lt::bdecode(buf.data(), buf.data() + buf.size(), decoded, ec);
         if (ec) return false;
 
         item["v"] = decoded;
@@ -148,7 +151,7 @@ public:
     }
 
     bool get_mutable_item_seq(lt::sha1_hash const& target,
-        lt::dht::sequence_number& seq) const override
+        dht_sequence_number& seq) const override
     {
         auto const found = m_mutable_items.find(target);
         if (found == m_mutable_items.end()) return false;
@@ -157,7 +160,7 @@ public:
         return true;
     }
 
-    bool get_mutable_item(lt::sha1_hash const& target, lt::dht::sequence_number seq,
+    bool get_mutable_item(lt::sha1_hash const& target, dht_sequence_number seq,
         bool force_fill, lt::entry& item) const override
     {
         auto const found = m_mutable_items.find(target);
@@ -170,7 +173,8 @@ public:
         {
             lt::bdecode_node decoded;
             lt::error_code ec;
-            lt::bdecode(data.value, decoded, ec);
+            auto const& value = data.value;
+            lt::bdecode(value.data(), value.data() + value.size(), decoded, ec);
             if (!ec) item["v"] = decoded;
 
             item["sig"] = std::string(data.signature.bytes.begin(), data.signature.bytes.end());
@@ -181,7 +185,7 @@ public:
     }
 
     void put_mutable_item(lt::sha1_hash const& target, lt::span<char const> buf,
-        lt::dht::signature const& sig, lt::dht::sequence_number seq,
+        lt::dht::signature const& sig, dht_sequence_number seq,
         lt::dht::public_key const& pk, lt::span<char const> salt,
         lt::address const& addr) override
     {
@@ -288,7 +292,7 @@ private:
     int m_max_torrents = 2000;
     int m_max_items = 500;
 
-    std::vector<lt::node_id> m_node_ids;
+    std::vector<dht_node_id> m_node_ids;
 
     std::unordered_map<lt::sha1_hash, std::vector<PeerRecord>, Sha1HashHasher> m_peers;
     std::unordered_map<lt::sha1_hash, std::vector<char>, Sha1HashHasher> m_immutable_items;
@@ -300,7 +304,7 @@ private:
 
 namespace MyDhtStorage {
 
-std::unique_ptr<lt::dht::dht_storage_interface> CreateMemoryDhtStorage(
+std::unique_ptr<dht_storage_interface_t> CreateMemoryDhtStorage(
     lt::settings_interface const& settings)
 {
     return std::make_unique<MemoryDhtStorage>(settings);
