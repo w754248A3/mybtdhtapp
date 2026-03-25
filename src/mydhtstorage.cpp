@@ -9,7 +9,6 @@
 #include <libtorrent/entry.hpp>
 #include <libtorrent/kademlia/item.hpp>
 #include <libtorrent/settings_pack.hpp>
-#include <libtorrent/version.hpp>
 
 namespace {
 
@@ -19,11 +18,7 @@ using dht_node_id = lt::dht::node_id;
 
 std::int64_t SequenceToInt64(dht_sequence_number const& seq)
 {
-#if LIBTORRENT_VERSION_NUM < 20000
     return static_cast<std::int64_t>(seq.value);
-#else
-    return static_cast<std::int64_t>(seq);
-#endif
 }
 
 struct Sha1HashHasher {
@@ -295,6 +290,22 @@ public:
         c.immutable_data = static_cast<std::int32_t>(m_immutable_items.size());
         c.mutable_data = static_cast<std::int32_t>(m_mutable_items.size());
         return c;
+    }
+
+    int num_torrents() const override
+    {
+        return static_cast<int>(m_peers.size());
+    }
+
+    int num_peers() const override
+    {
+        int total_peers = 0;
+        for (auto const& [hash, list] : m_peers)
+        {
+            (void)hash;
+            total_peers += static_cast<int>(list.size());
+        }
+        return total_peers;
     }
 
 private:
